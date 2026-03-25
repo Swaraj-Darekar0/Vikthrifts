@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Order, Page } from '../types';
 import { User, Mail, Shield, LogOut, Loader2, Package, Truck, Upload } from 'lucide-react';
-import { supabase } from '../supabase';
+import { supabase, SUPABASE_STORAGE_BUCKET } from '../supabase';
 
 interface ProfileProps {
   setPage: (page: Page) => void;
@@ -13,6 +13,7 @@ export const Profile: React.FC<ProfileProps> = ({ setPage }) => {
   const [email, setEmail] = useState<string | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
+  const [sessionRole, setSessionRole] = useState<string | null>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -28,6 +29,8 @@ export const Profile: React.FC<ProfileProps> = ({ setPage }) => {
 
         setEmail(user.email || null);
         setUserId(user.id);
+        const metaRole = (user.user_metadata?.role as string | undefined) ?? undefined;
+        setSessionRole(metaRole ?? null);
 
         const { data, error } = await supabase
           .from('profiles')
@@ -44,7 +47,22 @@ export const Profile: React.FC<ProfileProps> = ({ setPage }) => {
         if (error) {
           console.error('Error fetching profile:', error);
         } else {
-          setProfile(data);
+          // If this is an admin session, ensure the DB profile row reflects it too.
+          if (metaRole === 'admin' && data?.role !== 'admin') {
+            const { error: roleSyncError } = await supabase
+              .from('profiles')
+              .update({ role: 'admin' })
+              .eq('id', user.id);
+
+            if (roleSyncError) {
+              console.warn('Failed to sync admin role into profiles:', roleSyncError);
+              setProfile(data);
+            } else {
+              setProfile({ ...data, role: 'admin' });
+            }
+          } else {
+            setProfile(data);
+          }
         }
 
         if (ordersError) {
@@ -78,12 +96,12 @@ export const Profile: React.FC<ProfileProps> = ({ setPage }) => {
       const filePath = `avatars/${userId}_${Date.now()}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
-        .from('thredz')
+        .from(SUPABASE_STORAGE_BUCKET)
         .upload(filePath, file, { cacheControl: '3600', upsert: false });
 
       if (uploadError) throw uploadError;
 
-      const { data } = supabase.storage.from('thredz').getPublicUrl(filePath);
+      const { data } = supabase.storage.from(SUPABASE_STORAGE_BUCKET).getPublicUrl(filePath);
 
       const { error: updateError } = await supabase
         .from('profiles')
@@ -166,7 +184,7 @@ export const Profile: React.FC<ProfileProps> = ({ setPage }) => {
                   <Shield size={18} />
                   <span className="font-label font-bold text-xs uppercase">ACCOUNT TYPE</span>
                 </div>
-                <p className="font-headline font-bold text-lg uppercase">{profile?.role || 'BUYER'}</p>
+                <p className="font-headline font-bold text-lg uppercase">{(sessionRole || profile?.role || 'buyer').toUpperCase()}</p>
               </div>
             </div>
           </div>

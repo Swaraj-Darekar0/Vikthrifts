@@ -23,7 +23,11 @@ export const StoreDetail: React.FC<StoreDetailProps> = ({ store, setPage, onProd
   useEffect(() => {
     const fetchStoreContent = async () => {
       try {
-        const [{ data: productsData, error: productsError }, { data: ratingsData, error: ratingsError }, { data: authData }] = await Promise.all([
+        const [
+          { data: productsData, error: productsError },
+          { data: ratingsData, error: ratingsError },
+          { data: authData, error: authError },
+        ] = await Promise.all([
           supabase
             .from('products')
             .select('*')
@@ -37,6 +41,7 @@ export const StoreDetail: React.FC<StoreDetailProps> = ({ store, setPage, onProd
 
         if (productsError) throw productsError;
         if (ratingsError) throw ratingsError;
+        if (authError) console.warn('Error fetching auth user:', authError);
 
         setProducts((productsData || []).map((p) => ({
           id: p.id,
@@ -55,7 +60,8 @@ export const StoreDetail: React.FC<StoreDetailProps> = ({ store, setPage, onProd
         setRatingCount(ratings.length);
         setAverageRating(ratings.length > 0 ? Number((totalRatings / ratings.length).toFixed(1)) : 0);
 
-        const currentUserId = authData.data.user?.id;
+        // getUser() returns { data: { user }, error }, so authData is { user } here.
+        const currentUserId = authData.user?.id;
         setUserRating(currentUserId ? (ratings.find((entry) => entry.buyer_id === currentUserId)?.rating ?? null) : null);
       } catch (error) {
         console.error('Error fetching store content:', error);
@@ -123,9 +129,7 @@ export const StoreDetail: React.FC<StoreDetailProps> = ({ store, setPage, onProd
         )}
 
         <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-end gap-4 md:gap-6 text-white pr-4">
-          <div className="w-20 h-20 md:w-24 md:h-24 bg-white text-ink border-4 border-ink flex items-center justify-center font-headline font-black text-2xl md:text-3xl neo-shadow">
-            {store.initials}
-          </div>
+
 
           <div className="mb-1 md:mb-2">
             <h1 className="font-headline font-black text-3xl sm:text-4xl md:text-5xl uppercase tracking-tighter leading-none">{store.name}</h1>

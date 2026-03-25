@@ -47,28 +47,28 @@ create trigger on_auth_user_created
 
 -- 5. Create the storage bucket for images
 insert into storage.buckets (id, name, public)
-values ('VIKTHRIFTS', 'VIKTHRIFTS', true)
+values ('thredz', 'thredz', true)
 on conflict (id) do nothing;
 
 -- 6. Storage Policies
 -- Allow public to view images
 create policy "Public Access"
 on storage.objects for select
-using ( bucket_id = 'VIKTHRIFTS' );
+using ( bucket_id = 'thredz' );
 
 -- Allow authenticated users to upload images
 create policy "Authenticated users can upload"
 on storage.objects for insert
 to authenticated
-with check ( bucket_id = 'VIKTHRIFTS' );
+with check ( bucket_id = 'thredz' );
 
 -- Allow users to update/delete their own images
 create policy "Users can update their own images"
 on storage.objects for update
 to authenticated
-using ( bucket_id = 'VIKTHRIFTS' AND (auth.uid() = owner) );
+using ( bucket_id = 'thredz' AND (auth.uid() = owner) );
 
 create policy "Users can delete their own images"
 on storage.objects for delete
 to authenticated
-using ( bucket_id = 'VIKTHRIFTS' AND (auth.uid() = owner) );
+using ( bucket_id = 'thredz' AND (auth.uid() = owner) );

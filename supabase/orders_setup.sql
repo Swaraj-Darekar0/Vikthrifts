@@ -70,6 +70,7 @@ using (
     where profiles.id = auth.uid()
       and profiles.role = 'admin'
   )
+  and is_admin_order = true
 );
 
 create policy "Admins can update all orders"
@@ -83,6 +84,7 @@ using (
     where profiles.id = auth.uid()
       and profiles.role = 'admin'
   )
+  and is_admin_order = true
 )
 with check (
   exists (
@@ -91,4 +93,5 @@ with check (
     where profiles.id = auth.uid()
       and profiles.role = 'admin'
   )
+  and is_admin_order = true
 );

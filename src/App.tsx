@@ -23,8 +23,49 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Loader2 } from 'lucide-react';
 import { supabase } from './supabase';
 
+const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> => {
+  let timeoutHandle: number | null = null;
+
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timeoutHandle = window.setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutHandle !== null) window.clearTimeout(timeoutHandle);
+  }
+};
+
 const App: React.FC = () => {
-  const [currentPage, setCurrentPage] = useState<Page>('home');
+  const persistablePages: Page[] = [
+    'home',
+    'stores',
+    'cart',
+    'checkout',
+    'auth-choice',
+    'auth-buyer',
+    'auth-seller',
+    'seller-dashboard',
+    'help-center',
+    'shipping',
+    'returns',
+    'contact',
+    'profile',
+    'admin-auth',
+    'admin-dashboard',
+    'search',
+  ];
+
+  const [currentPage, setCurrentPage] = useState<Page>(() => {
+    try {
+      const saved = sessionStorage.getItem('thredz:page') as Page | null;
+      if (saved && persistablePages.includes(saved)) return saved;
+    } catch {
+      // ignore (storage may be blocked)
+    }
+    return 'home';
+  });
   const [searchQuery, setSearchQuery] = useState('');
   const [cart, setCart] = useState<Product[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -97,7 +138,42 @@ const App: React.FC = () => {
   }, [currentPage]);
 
   useEffect(() => {
+    try {
+      // Only persist pages that can safely restore without in-memory state (avoids broken "product/store-detail" restores).
+      const next = persistablePages.includes(currentPage) ? currentPage : 'home';
+      sessionStorage.setItem('thredz:page', next);
+    } catch {
+      // ignore
+    }
+  }, [currentPage]);
+
+  useEffect(() => {
     const authPages: Page[] = ['auth-choice', 'auth-buyer', 'auth-seller', 'admin-auth'];
+
+    const resolveRole = async (user: any) => {
+      let role = user?.user_metadata?.role;
+      if (role) return role;
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      return profile?.role;
+    };
+
+    const isAdminByEmail = async (email: string | null | undefined) => {
+      if (!email) return false;
+      const { data, error } = await supabase
+        .from('admin_settings')
+        .select('id')
+        .eq('email', email)
+        .maybeSingle();
+
+      if (error && error.code !== 'PGRST116') throw error;
+      return Boolean(data?.id);
+    };
 
     // Helper to determine role and update state
     const handleSession = async (session: any, event: string | null = null) => {
@@ -118,16 +194,18 @@ const App: React.FC = () => {
       setUser(session.user);
       
       // Check role from metadata first (faster), then DB
-      let role = session.user.user_metadata?.role;
-      
+      let role: any = session.user.user_metadata?.role;
       if (!role) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', session.user.id)
-          .maybeSingle();
-        role = profile?.role;
+        try {
+          role = await withTimeout(resolveRole(session.user), 5000, 'resolveRole');
+        } catch (e) {
+          console.warn('[App] Role resolution failed or timed out:', e);
+          role = undefined;
+        }
       }
+
+      const isAdminRole = role === 'admin';
+      setIsAdmin(isAdminRole);
 
       const isSellerRole = role === 'seller';
       setIsSeller(isSellerRole);
@@ -138,7 +216,27 @@ const App: React.FC = () => {
 
       if (event === 'SIGNED_IN' || isOnAuthPage) {
         console.log('[App] Auth Event: SIGNED_IN -> Redirecting based on role:', role);
-        if (isSellerRole) {
+        if (currentPageRef.current === 'admin-auth') {
+          try {
+            const allowed = await withTimeout(isAdminByEmail(session.user.email), 5000, 'adminEmailCheck');
+            if (allowed) {
+              setIsAdmin(true);
+              setCurrentPage('admin-dashboard');
+            } else {
+              setIsAdmin(false);
+              setCurrentPage('home');
+            }
+          } catch (e) {
+            console.warn('[App] Admin email check failed/timed out:', e);
+            setIsAdmin(false);
+            setCurrentPage('home');
+          }
+          return;
+        }
+
+        if (isAdminRole) {
+          setCurrentPage('admin-dashboard');
+        } else if (isSellerRole) {
           setCurrentPage('seller-dashboard');
         } else {
           setCurrentPage('home');
@@ -149,9 +247,11 @@ const App: React.FC = () => {
     // 1. Check Initial Session
     const initSession = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        await handleSession(session, 'INITIAL_SESSION');
+        const { data } = await withTimeout(supabase.auth.getSession(), 5000, 'getSession');
+        setAuthLoading(false);
+        void handleSession(data.session, 'INITIAL_SESSION');
       } catch (e: any) {
+        console.warn('[App] Initial session check failed/timed out:', e);
         if (e.message?.includes('VITE_SUPABASE_ANON_KEY')) {
           setConfigError(e.message);
         }
@@ -166,8 +266,8 @@ const App: React.FC = () => {
     try {
       const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
         console.log(`[App] Auth State Change: ${event}`);
-        await handleSession(session, event);
         setAuthLoading(false);
+        void handleSession(session, event);
       });
       subscription = data.subscription;
     } catch (e: any) {

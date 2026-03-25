@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Page, AdminProduct, Store, Order, OrderStatus } from '../types';
-import { Package, Store as StoreIcon, Plus, Trash2, Edit, Loader2, X, LogOut, Upload, Truck } from 'lucide-react';
-import { supabase } from '../supabase';
+import { Page, AdminProduct, Store, Order, OrderStatus, Product } from '../types';
+import { Package, Store as StoreIcon, Plus, Trash2, Edit, Loader2, X, LogOut, Upload, Truck, ArrowLeft } from 'lucide-react';
+import { supabase, SUPABASE_STORAGE_BUCKET } from '../supabase';
 import { PREDEFINED_TAGS } from '../constants';
 import { fetchStoreMetrics } from '../lib/storeMetrics';
 
@@ -18,6 +18,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setPage, setIsAd
   const [orders, setOrders] = useState<Order[]>([]);
   const [savingOrderId, setSavingOrderId] = useState<string | null>(null);
   const [orderDrafts, setOrderDrafts] = useState<Record<string, { status: OrderStatus; tracking_id: string; tracking_website: string }>>({});
+  const [selectedStore, setSelectedStore] = useState<Store | null>(null);
+  const [storeListings, setStoreListings] = useState<Product[]>([]);
+  const [storeListingsLoading, setStoreListingsLoading] = useState(false);
+  const [deletingStoreId, setDeletingStoreId] = useState<string | null>(null);
+  const [deletingListingId, setDeletingListingId] = useState<string | null>(null);
   
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -39,6 +44,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setPage, setIsAd
 
   useEffect(() => {
     fetchData();
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab !== 'stores') {
+      setSelectedStore(null);
+      setStoreListings([]);
+    }
   }, [activeTab]);
 
   useEffect(() => {
@@ -83,6 +95,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setPage, setIsAd
         const { data, error } = await supabase
           .from('orders')
           .select('*')
+          // Admin should only see orders created from admin product listings.
+          .eq('is_admin_order', true)
           .order('created_at', { ascending: false });
 
         if (error) throw error;
@@ -95,6 +109,87 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setPage, setIsAd
     }
   };
 
+  const fetchStoreListings = async (store: Store) => {
+    setStoreListingsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .eq('store_id', store.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const mapped: Product[] = (data || []).map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        price: p.price,
+        oldPrice: undefined,
+        image: p.image_url,
+        category: p.category,
+        store: store.name,
+        description: p.description,
+        tags: p.tags || [],
+        size: p.size,
+      }));
+
+      setStoreListings(mapped);
+    } catch (error: any) {
+      console.error('Error fetching store listings:', error);
+      alert('Failed to load store listings: ' + (error?.message || 'Unknown error'));
+    } finally {
+      setStoreListingsLoading(false);
+    }
+  };
+
+  const openStoreListings = async (store: Store) => {
+    setSelectedStore(store);
+    await fetchStoreListings(store);
+  };
+
+  const handleDeleteStore = async (storeId: string) => {
+    const confirmed = confirm('Delete this store and all its products? This cannot be undone.');
+    if (!confirmed) return;
+
+    setDeletingStoreId(storeId);
+    try {
+      const { error } = await supabase.from('stores').delete().eq('id', storeId);
+      if (error) throw error;
+
+      if (selectedStore?.id === storeId) {
+        setSelectedStore(null);
+        setStoreListings([]);
+      }
+
+      fetchData();
+    } catch (error: any) {
+      console.error('Error deleting store:', error);
+      alert('Failed to delete store: ' + (error?.message || 'Unknown error'));
+    } finally {
+      setDeletingStoreId(null);
+    }
+  };
+
+  const handleDeleteStoreListing = async (productId: string) => {
+    if (!selectedStore) return;
+
+    const confirmed = confirm('Delete this product listing? This cannot be undone.');
+    if (!confirmed) return;
+
+    setDeletingListingId(productId);
+    try {
+      const { error } = await supabase.from('products').delete().eq('id', productId);
+      if (error) throw error;
+
+      setStoreListings(prev => prev.filter(p => p.id !== productId));
+    } catch (error: any) {
+      console.error('Error deleting listing:', error);
+      alert('Failed to delete listing: ' + (error?.message || 'Unknown error'));
+    } finally {
+      setDeletingListingId(null);
+    }
+  };
+
   const handleImageUpload = async (file: File) => {
     try {
       const fileExt = file.name.split('.').pop();
@@ -102,12 +197,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setPage, setIsAd
       const filePath = `admin_products/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
-        .from('VIKTHRIFTS')
+        .from(SUPABASE_STORAGE_BUCKET)
         .upload(filePath, file, { cacheControl: '3600', upsert: false });
 
       if (uploadError) throw uploadError;
 
-      const { data } = supabase.storage.from('VIKTHRIFTS').getPublicUrl(filePath);
+      const { data } = supabase.storage.from(SUPABASE_STORAGE_BUCKET).getPublicUrl(filePath);
       return data.publicUrl;
     } catch (error) {
       console.error('Upload failed:', error);
@@ -167,6 +262,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setPage, setIsAd
       fetchData();
     } catch (error) {
       console.error('Error deleting product:', error);
+      alert('Failed to delete product: ' + ((error as any)?.message || 'Unknown error'));
     }
   };
 
@@ -334,7 +430,85 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setPage, setIsAd
           </div>
         ) : activeTab === 'stores' ? (
           <div>
-            <h2 className="font-headline font-black text-3xl sm:text-4xl uppercase mb-8">REGISTERED STORES</h2>
+            {selectedStore ? (
+              <div>
+                <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-8">
+                  <div className="min-w-0">
+                    <button
+                      onClick={() => {
+                        setSelectedStore(null);
+                        setStoreListings([]);
+                      }}
+                      className="inline-flex items-center gap-2 font-label font-bold text-xs uppercase tracking-widest text-ink/60 hover:text-ink transition-colors mb-3"
+                    >
+                      <ArrowLeft size={16} /> Back to Stores
+                    </button>
+                    <h2 className="font-headline font-black text-3xl sm:text-4xl uppercase truncate">{selectedStore.name}</h2>
+                    <p className="font-body font-bold text-ink/50 mt-2">Manage listings for this store.</p>
+                  </div>
+
+                  <button
+                    onClick={() => handleDeleteStore(selectedStore.id)}
+                    disabled={deletingStoreId === selectedStore.id}
+                    className="w-full sm:w-auto bg-tertiary text-white border-4 border-ink px-6 py-3 font-headline font-black text-sm neo-shadow hover:opacity-90 transition-opacity disabled:opacity-60 flex items-center justify-center gap-2"
+                  >
+                    {deletingStoreId === selectedStore.id ? <Loader2 className="animate-spin" size={18} /> : <Trash2 size={18} />}
+                    DELETE STORE
+                  </button>
+                </div>
+
+                {storeListingsLoading ? (
+                  <div className="flex justify-center py-12"><Loader2 className="animate-spin" /></div>
+                ) : storeListings.length === 0 ? (
+                  <div className="bg-white border-4 border-ink p-8 neo-shadow text-center">
+                    <p className="font-headline font-black text-xl uppercase text-ink/30">NO LISTINGS YET</p>
+                  </div>
+                ) : (
+                  <div className="bg-white border-4 border-ink neo-shadow overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[760px] text-left">
+                        <thead className="bg-surface-container border-b-4 border-ink font-label font-bold text-xs uppercase">
+                          <tr>
+                            <th className="p-4">PRODUCT</th>
+                            <th className="p-4">CATEGORY</th>
+                            <th className="p-4">SIZE</th>
+                            <th className="p-4">PRICE</th>
+                            <th className="p-4 text-right">ACTIONS</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y-2 divide-ink/10">
+                          {storeListings.map(listing => (
+                            <tr key={listing.id} className="hover:bg-surface-container/30">
+                              <td className="p-4 flex items-center gap-4">
+                                <div className="w-10 h-10 bg-surface-container border-2 border-ink overflow-hidden">
+                                  {listing.image && <img src={listing.image} className="w-full h-full object-cover" />}
+                                </div>
+                                <span className="font-headline font-bold uppercase">{listing.name}</span>
+                              </td>
+                              <td className="p-4 font-label text-xs font-bold">{listing.category}</td>
+                              <td className="p-4 font-label text-xs font-bold">{listing.size || 'N/A'}</td>
+                              <td className="p-4 font-headline font-bold">Rs. {listing.price}</td>
+                              <td className="p-4 text-right flex justify-end gap-2">
+                                <button
+                                  onClick={() => handleDeleteStoreListing(listing.id)}
+                                  disabled={deletingListingId === listing.id}
+                                  className="p-2 border-2 border-ink hover:bg-tertiary hover:text-white transition-colors disabled:opacity-60"
+                                  title="Delete listing"
+                                >
+                                  {deletingListingId === listing.id ? <Loader2 className="animate-spin" size={16} /> : <Trash2 size={16} />}
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <>
+                <h2 className="font-headline font-black text-3xl sm:text-4xl uppercase mb-8">REGISTERED STORES</h2>
             {loading ? (
               <div className="flex justify-center py-12"><Loader2 className="animate-spin" /></div>
             ) : (
@@ -351,13 +525,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setPage, setIsAd
                       </div>
                     </div>
                     <p className="font-body text-sm text-ink/70 mb-4 line-clamp-2">{store.description}</p>
-                    <div className="text-right">
-                      {/* Admin could have delete store functionality here */}
-                      <span className="font-label text-xs font-bold bg-surface-container px-2 py-1 border border-ink">ID: {store.id.substr(0, 8)}...</span>
+                    <div className="flex items-center justify-between gap-3">
+                      <button
+                        onClick={() => openStoreListings(store)}
+                        className="bg-primary-container border-2 border-ink px-4 py-2 font-label font-bold text-[11px] uppercase tracking-widest neo-shadow-sm hover:opacity-90 transition-opacity"
+                      >
+                        View Listings
+                      </button>
+                      <button
+                        onClick={() => handleDeleteStore(store.id)}
+                        disabled={deletingStoreId === store.id}
+                        className="p-2 border-2 border-ink hover:bg-tertiary hover:text-white transition-colors disabled:opacity-60"
+                        title="Delete store"
+                      >
+                        {deletingStoreId === store.id ? <Loader2 className="animate-spin" size={16} /> : <Trash2 size={16} />}
+                      </button>
                     </div>
                   </div>
                 ))}
               </div>
+            )}
+              </>
             )}
           </div>
         ) : (

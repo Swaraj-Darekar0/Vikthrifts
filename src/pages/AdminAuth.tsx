@@ -54,6 +54,38 @@ export const AdminAuth: React.FC<AdminAuthProps> = ({ setPage, setIsAdmin }) => 
       }
       
       console.log('[AdminAuth] Step 4: Login Successful');
+
+      // Persist admin role for future refreshes (App.tsx reads this from profiles/user_metadata).
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        try {
+          await supabase.auth.updateUser({ data: { ...(user.user_metadata || {}), role: 'admin' } });
+        } catch (metaError) {
+          console.warn('[AdminAuth] Failed to update user metadata role:', metaError);
+        }
+
+        // Try update first (common case), then upsert as a fallback if the row is missing.
+        const { data: updatedRows, error: updateError } = await supabase
+          .from('profiles')
+          .update({ role: 'admin' })
+          .eq('id', user.id)
+          .select('id');
+
+        if (updateError || !updatedRows || updatedRows.length === 0) {
+          if (updateError) {
+            console.warn('[AdminAuth] Failed to update profiles role:', updateError);
+          }
+
+          const { error: upsertError } = await supabase
+            .from('profiles')
+            .upsert({ id: user.id, role: 'admin' }, { onConflict: 'id' });
+
+          if (upsertError) {
+            console.warn('[AdminAuth] Failed to upsert admin role into profiles:', upsertError);
+          }
+        }
+      }
+
       setIsAdmin(true);
       setPage('admin-dashboard');
     } catch (err: any) {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Page, Product, Store, Order, OrderStatus } from '../types';
-import { Plus, Upload, X, ArrowLeft, LayoutDashboard, Package, Settings, Loader2, Store as StoreIcon, Edit, Truck } from 'lucide-react';
-import { supabase } from '../supabase';
+import { Plus, Upload, X, ArrowLeft, LayoutDashboard, Package, Settings, Loader2, Store as StoreIcon, Edit, Truck, Trash2 } from 'lucide-react';
+import { supabase, SUPABASE_STORAGE_BUCKET } from '../supabase';
 import { PREDEFINED_TAGS } from '../constants';
 import { fetchStoreMetrics } from '../lib/storeMetrics';
 
@@ -142,12 +142,12 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({ setPage }) => 
       const filePath = `${path}/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
-        .from('VIKTHRIFTS')
+        .from(SUPABASE_STORAGE_BUCKET)
         .upload(filePath, file, { cacheControl: '3600', upsert: false });
 
       if (uploadError) throw uploadError;
 
-      const { data } = supabase.storage.from('VIKTHRIFTS').getPublicUrl(filePath);
+      const { data } = supabase.storage.from(SUPABASE_STORAGE_BUCKET).getPublicUrl(filePath);
       return data.publicUrl;
     } catch (error) {
       console.error('Upload error:', error);
@@ -260,7 +260,34 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({ setPage }) => 
       fetchStoreAndProducts();
     } catch (error) {
       console.error('Error saving product:', error);
-      alert('Failed to save product.');
+      alert('Failed to save product: ' + ((error as any)?.message || 'Unknown error'));
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDeleteListing = async (productId: string) => {
+    if (!store) return;
+
+    const confirmed = confirm('Delete this listing? This cannot be undone.');
+    if (!confirmed) return;
+
+    setUploading(true);
+    try {
+      const { error } = await supabase
+        .from('products')
+        .delete()
+        .eq('id', productId)
+        .eq('store_id', store.id);
+
+      if (error) throw error;
+
+      // Optimistic UI update + refresh for counts/metrics consistency.
+      setProducts(prev => prev.filter(p => p.id !== productId));
+      fetchStoreAndProducts();
+    } catch (error: any) {
+      console.error('Error deleting listing:', error);
+      alert('Failed to delete listing: ' + (error?.message || 'Unknown error'));
     } finally {
       setUploading(false);
     }
@@ -573,6 +600,14 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({ setPage }) => 
                         <div className="flex gap-2 sm:justify-start">
                           <button onClick={() => openEditProduct(product)} className="p-2 border-2 border-ink hover:bg-secondary-container transition-colors" title="Edit">
                             <Edit size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteListing(product.id)}
+                            className="p-2 border-2 border-ink hover:bg-tertiary hover:text-white transition-colors"
+                            title="Delete"
+                            disabled={uploading}
+                          >
+                            <Trash2 size={16} />
                           </button>
                         </div>
                       </div>

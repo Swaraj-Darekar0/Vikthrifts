@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Product } from '../types';
-import { PRODUCTS } from '../constants';
 import { ProductCard } from '../components/ProductCard';
 import { ShoppingCart, Share2, ShieldCheck, Truck, X, Copy, Mail, MessageCircle, Send, Twitter } from 'lucide-react';
+import { supabase } from '../supabase';
 
 interface ProductDetailProps {
   product: Product;
@@ -11,7 +11,8 @@ interface ProductDetailProps {
 }
 
 export const ProductDetail: React.FC<ProductDetailProps> = ({ product, onAddToCart, onProductClick }) => {
-  const relatedProducts = PRODUCTS.filter(p => p.id !== product.id).slice(0, 4);
+  const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
+  const [relatedLoading, setRelatedLoading] = useState(false);
   const [shareMessage, setShareMessage] = useState<string | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
 
@@ -31,6 +32,102 @@ export const ProductDetail: React.FC<ProductDetailProps> = ({ product, onAddToCa
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [shareOpen]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const mapAdminToProduct = (p: any): Product => ({
+      id: p.id,
+      name: p.name,
+      price: Number(p.price),
+      oldPrice: undefined,
+      image: p.image_url,
+      category: p.category || 'CLOTHING',
+      store: 'VIKTHRIFTS OFFICIAL',
+      description: p.description || '',
+      tags: p.tags || [],
+      size: p.size || undefined,
+    });
+
+    const mapSellerToProduct = (p: any, storeNameFallback: string): Product => ({
+      id: p.id,
+      name: p.name,
+      price: Number(p.price),
+      oldPrice: undefined,
+      image: p.image_url,
+      category: p.category || 'CLOTHING',
+      store: p.stores?.name || storeNameFallback,
+      description: p.description || '',
+      tags: p.tags || [],
+      size: p.size || undefined,
+    });
+
+    const fetchRelated = async () => {
+      setRelatedLoading(true);
+      try {
+        // 1) If this is an admin product, show other admin products.
+        const { data: adminMatch, error: adminMatchError } = await supabase
+          .from('admin_products')
+          .select('id')
+          .eq('id', product.id)
+          .maybeSingle();
+
+        if (adminMatchError && adminMatchError.code !== 'PGRST116') throw adminMatchError;
+
+        if (adminMatch?.id) {
+          const { data: adminRelated, error: adminRelatedError } = await supabase
+            .from('admin_products')
+            .select('*')
+            .eq('active', true)
+            .neq('id', product.id)
+            .order('created_at', { ascending: false })
+            .limit(4);
+
+          if (adminRelatedError) throw adminRelatedError;
+          const mapped = (adminRelated || []).map(mapAdminToProduct);
+          if (!cancelled) setRelatedProducts(mapped);
+          return;
+        }
+
+        // 2) Otherwise fetch other products from the same seller store.
+        const { data: currentRow, error: currentRowError } = await supabase
+          .from('products')
+          .select('store_id')
+          .eq('id', product.id)
+          .maybeSingle();
+
+        if (currentRowError && currentRowError.code !== 'PGRST116') throw currentRowError;
+
+        const storeId = currentRow?.store_id;
+        if (!storeId) {
+          if (!cancelled) setRelatedProducts([]);
+          return;
+        }
+
+        const { data: sellerRelated, error: sellerRelatedError } = await supabase
+          .from('products')
+          .select('id,name,price,image_url,category,description,tags,size,stores(name)')
+          .eq('store_id', storeId)
+          .neq('id', product.id)
+          .order('created_at', { ascending: false })
+          .limit(4);
+
+        if (sellerRelatedError) throw sellerRelatedError;
+        const mapped = (sellerRelated || []).map((p: any) => mapSellerToProduct(p, product.store));
+        if (!cancelled) setRelatedProducts(mapped);
+      } catch (e) {
+        console.warn('Failed to load related products:', e);
+        if (!cancelled) setRelatedProducts([]);
+      } finally {
+        if (!cancelled) setRelatedLoading(false);
+      }
+    };
+
+    fetchRelated();
+    return () => {
+      cancelled = true;
+    };
+  }, [product.id, product.store]);
 
   const setTimedMessage = (msg: string) => {
     setShareMessage(msg);
@@ -268,21 +365,39 @@ export const ProductDetail: React.FC<ProductDetailProps> = ({ product, onAddToCa
       <section className="pt-16 md:pt-24 border-t-4 border-ink">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 mb-8 md:mb-12">
           <h2 className="font-headline font-black text-3xl md:text-5xl tracking-tighter uppercase">COMPLETE THE KIT</h2>
-          <span className="font-label font-bold text-xs text-ink/50 uppercase tracking-widest">YOU MIGHT ALSO LIKE</span>
+          <span className="font-label font-bold text-xs text-ink/50 uppercase tracking-widest">
+            {relatedLoading ? 'LOADING…' : `MORE FROM ${product.store}`}
+          </span>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
-          {relatedProducts.map(p => (
-            <ProductCard 
-              key={p.id} 
-              product={p} 
-              onAdd={(e) => {
-                e.stopPropagation();
-                onAddToCart(p);
-              }}
-              onClick={() => onProductClick(p)}
-            />
-          ))}
-        </div>
+        {relatedLoading ? (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 md:gap-8">
+            {Array.from({ length: 4 }).map((_, idx) => (
+              <div key={idx} className="bg-white border-4 border-ink neo-shadow p-4 animate-pulse">
+                <div className="aspect-square bg-surface-container border-2 border-ink" />
+                <div className="mt-4 h-4 bg-surface-container border-2 border-ink" />
+                <div className="mt-3 h-4 w-2/3 bg-surface-container border-2 border-ink" />
+              </div>
+            ))}
+          </div>
+        ) : relatedProducts.length === 0 ? (
+          <div className="bg-white border-4 border-ink neo-shadow p-8 text-center">
+            <p className="font-headline font-black text-xl uppercase text-ink/30">NO MORE DROPS FROM THIS STORE</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 md:gap-8">
+            {relatedProducts.map(p => (
+              <ProductCard
+                key={p.id}
+                product={p}
+                onAdd={(e) => {
+                  e.stopPropagation();
+                  onAddToCart(p);
+                }}
+                onClick={() => onProductClick(p)}
+              />
+            ))}
+          </div>
+        )}
       </section>
     </div>
   );

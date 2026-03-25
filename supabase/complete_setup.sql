@@ -97,19 +97,23 @@ using (auth.uid() = buyer_id)
 with check (auth.uid() = buyer_id);
 
 -- ==========================================
--- 4. STORAGE SETUP (VIKTHRIFTS BUCKET)
+-- 4. STORAGE SETUP (thredz BUCKET)
 -- ==========================================
 
 -- Create the bucket if it doesn't exist
 insert into storage.buckets (id, name, public)
-values ('VIKTHRIFTS', 'VIKTHRIFTS', true)
+values ('thredz', 'thredz', true)
 on conflict (id) do nothing;
 
 -- Storage Policies
-create policy "Public Access" on storage.objects for select using ( bucket_id = 'VIKTHRIFTS' );
-create policy "Authenticated users can upload" on storage.objects for insert to authenticated with check ( bucket_id = 'VIKTHRIFTS' );
-create policy "Users can update own files" on storage.objects for update to authenticated using ( bucket_id = 'VIKTHRIFTS' );
-create policy "Users can delete own files" on storage.objects for delete to authenticated using ( bucket_id = 'VIKTHRIFTS' );
+drop policy if exists "Public Access" on storage.objects;
+create policy "Public Access" on storage.objects for select using ( bucket_id = 'thredz' );
+drop policy if exists "Authenticated users can upload" on storage.objects;
+create policy "Authenticated users can upload" on storage.objects for insert to authenticated with check ( bucket_id = 'thredz' );
+drop policy if exists "Users can update own files" on storage.objects;
+create policy "Users can update own files" on storage.objects for update to authenticated using ( bucket_id = 'thredz' );
+drop policy if exists "Users can delete own files" on storage.objects;
+create policy "Users can delete own files" on storage.objects for delete to authenticated using ( bucket_id = 'thredz' );
 
 -- ==========================================
 -- 5. PROFILE ROLE EXTENSION
@@ -203,6 +207,78 @@ using (
   )
 );
 
+drop policy if exists "Admins can update stores" on public.stores;
+create policy "Admins can update stores"
+on public.stores
+for update
+to authenticated
+using (
+  exists (
+    select 1
+    from public.profiles
+    where profiles.id = auth.uid()
+      and profiles.role = 'admin'
+  )
+)
+with check (
+  exists (
+    select 1
+    from public.profiles
+    where profiles.id = auth.uid()
+      and profiles.role = 'admin'
+  )
+);
+
+drop policy if exists "Admins can delete stores" on public.stores;
+create policy "Admins can delete stores"
+on public.stores
+for delete
+to authenticated
+using (
+  exists (
+    select 1
+    from public.profiles
+    where profiles.id = auth.uid()
+      and profiles.role = 'admin'
+  )
+);
+
+drop policy if exists "Admins can update products" on public.products;
+create policy "Admins can update products"
+on public.products
+for update
+to authenticated
+using (
+  exists (
+    select 1
+    from public.profiles
+    where profiles.id = auth.uid()
+      and profiles.role = 'admin'
+  )
+)
+with check (
+  exists (
+    select 1
+    from public.profiles
+    where profiles.id = auth.uid()
+      and profiles.role = 'admin'
+  )
+);
+
+drop policy if exists "Admins can delete products" on public.products;
+create policy "Admins can delete products"
+on public.products
+for delete
+to authenticated
+using (
+  exists (
+    select 1
+    from public.profiles
+    where profiles.id = auth.uid()
+      and profiles.role = 'admin'
+  )
+);
+
 -- ==========================================
 -- 6. ORDERS TABLE
 -- ==========================================
@@ -282,6 +358,7 @@ using (
     where profiles.id = auth.uid()
       and profiles.role = 'admin'
   )
+  and is_admin_order = true
 );
 
 drop policy if exists "Admins can update all orders" on public.orders;
@@ -296,6 +373,7 @@ using (
     where profiles.id = auth.uid()
       and profiles.role = 'admin'
   )
+  and is_admin_order = true
 )
 with check (
   exists (
@@ -304,4 +382,5 @@ with check (
     where profiles.id = auth.uid()
       and profiles.role = 'admin'
   )
+  and is_admin_order = true
 );
