@@ -7,9 +7,10 @@ interface AuthProps {
   type: 'buyer' | 'seller';
   setPage: (page: Page) => void;
   setIsSeller: (val: boolean) => void;
+  overlay?: boolean;
 }
 
-export const Auth: React.FC<AuthProps> = ({ type, setPage, setIsSeller }) => {
+export const Auth: React.FC<AuthProps> = ({ type, setPage, setIsSeller, overlay = false }) => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -114,16 +115,18 @@ export const Auth: React.FC<AuthProps> = ({ type, setPage, setIsSeller }) => {
   };
 
   return (
-    <div className="min-h-[calc(100vh-80px)] flex flex-col lg:flex-row">
+    <div className={`${overlay ? 'w-full max-w-6xl bg-surface border-4 border-ink neo-shadow-lg overflow-hidden' : 'min-h-[calc(100vh-80px)]'} flex flex-col lg:flex-row`}>
       {/* Left side - Form */}
-      <div className="w-full lg:w-1/2 p-5 sm:p-8 md:p-16 flex flex-col justify-center items-center bg-surface">
+      <div className={`w-full lg:w-1/2 p-5 sm:p-8 md:p-16 flex flex-col justify-center items-center bg-surface ${overlay ? 'min-h-[24rem]' : ''}`}>
         <div className="w-full max-w-md">
-          <button 
-            onClick={() => setPage('home')}
-            className="flex items-center gap-2 font-label font-bold text-sm mb-12 hover:text-tertiary transition-colors"
-          >
-            <ArrowLeft size={16} /> BACK TO HOME
-          </button>
+          {!overlay && (
+            <button 
+              onClick={() => setPage('home')}
+              className="flex items-center gap-2 font-label font-bold text-sm mb-12 hover:text-tertiary transition-colors"
+            >
+              <ArrowLeft size={16} /> BACK TO HOME
+            </button>
+          )}
 
           <div className="mb-8 md:mb-10">
             <h1 className="font-headline font-black text-4xl md:text-5xl tracking-tighter uppercase mb-2">

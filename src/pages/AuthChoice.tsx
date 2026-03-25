@@ -6,23 +6,26 @@ import authBannerBg from '../../images/rename.png';
 
 interface AuthChoiceProps {
   setPage: (page: Page) => void;
+  overlay?: boolean;
 }
 
-export const AuthChoice: React.FC<AuthChoiceProps> = ({ setPage }) => {
+export const AuthChoice: React.FC<AuthChoiceProps> = ({ setPage, overlay = false }) => {
   return (
-    <div className="min-h-[calc(100vh-80px)] bg-surface flex flex-col">
-      <div
-        className="relative min-h-[10rem] sm:min-h-[12rem] md:min-h-[14rem] border-y-4 border-ink bg-cover bg-center"
-        style={{ backgroundImage: `url(${authBannerBg})` }}
-      >
-        {/* <div className="absolute inset-0 bg-white/55" /> */}
-        {/* <button 
-          onClick={() => setPage('home')}
-          className="relative z-10 m-5 sm:m-8 md:m-12 flex items-center gap-2 font-label font-bold text-sm hover:text-tertiary transition-colors"
+    <div className={`${overlay ? 'w-full max-w-5xl bg-surface border-4 border-ink neo-shadow-lg overflow-hidden' : 'min-h-[calc(100vh-80px)] bg-surface'} flex flex-col`}>
+      {!overlay && (
+        <div
+          className="relative min-h-[10rem] sm:min-h-[12rem] md:min-h-[14rem] border-y-4 border-ink bg-cover bg-center"
+          style={{ backgroundImage: `url(${authBannerBg})` }}
         >
-          <ArrowLeft size={16} /> BACK TO HOME
-        </button> */}
-      </div>
+          {/* <div className="absolute inset-0 bg-white/55" /> */}
+          {/* <button 
+            onClick={() => setPage('home')}
+            className="relative z-10 m-5 sm:m-8 md:m-12 flex items-center gap-2 font-label font-bold text-sm hover:text-tertiary transition-colors"
+          >
+            <ArrowLeft size={16} /> BACK TO HOME
+          </button> */}
+        </div>
+      )}
 
       <div className="flex-grow flex flex-col lg:flex-row">
         {/* Buyer Option */}
@@ -31,7 +34,7 @@ export const AuthChoice: React.FC<AuthChoiceProps> = ({ setPage }) => {
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.5 }}
           onClick={() => setPage('auth-buyer')}
-          className="flex-1 p-8 sm:p-10 md:p-24 flex flex-col justify-center items-center text-center cursor-pointer group transition-colors duration-300 border-b-4 lg:border-b-0 lg:border-r-4 border-ink hover:bg-[#7d8063]"
+          className={`flex-1 p-8 sm:p-10 md:p-16 lg:p-20 flex flex-col justify-center items-center text-center cursor-pointer group transition-colors duration-300 border-ink hover:bg-[#a37343] ${overlay ? 'min-h-[18rem] lg:min-h-[24rem] border-b-4 lg:border-b-0 lg:border-r-4' : 'border-b-4 lg:border-b-0 lg:border-r-4'}`}
         >
           <div className="w-20 h-20 md:w-24 md:h-24 bg-white border-4 border-ink flex items-center justify-center mb-6 md:mb-8 neo-shadow group-hover:bg-[#f0eddc] group-hover:neo-shadow-lg transition-all rotate-[-3deg]">
             <ShoppingBag size={48} />
@@ -51,7 +54,7 @@ export const AuthChoice: React.FC<AuthChoiceProps> = ({ setPage }) => {
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.5 }}
           onClick={() => setPage('auth-seller')}
-          className="flex-1 p-8 sm:p-10 md:p-24 flex flex-col justify-center items-center text-center cursor-pointer group transition-colors duration-300 hover:bg-[#6f7358]"
+          className={`flex-1 p-8 sm:p-10 md:p-16 lg:p-20 flex flex-col justify-center items-center text-center cursor-pointer group transition-colors duration-300 hover:bg-[#cbc0b2] ${overlay ? 'min-h-[18rem] lg:min-h-[24rem]' : ''}`}
         >
           <div className="w-20 h-20 md:w-24 md:h-24 bg-white border-4 border-ink flex items-center justify-center mb-6 md:mb-8 neo-shadow group-hover:bg-[#ece7d3] group-hover:neo-shadow-lg transition-all rotate-[3deg]">
             <Store size={48} />
@@ -65,9 +68,6 @@ export const AuthChoice: React.FC<AuthChoiceProps> = ({ setPage }) => {
           </div>
         </motion.div>
       </div>
-
-      {/* Marquee-like footer */}
-
     </div>
   );
 };

@@ -35,6 +35,8 @@ const App: React.FC = () => {
   const [configError, setConfigError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const currentPageRef = useRef<Page>(currentPage);
+  const isGuestLocked = !authLoading && !user;
+  const isGuestAuthFlow = isGuestLocked && ['home', 'auth-choice', 'auth-buyer', 'auth-seller'].includes(currentPage);
 
   useEffect(() => {
     currentPageRef.current = currentPage;
@@ -50,8 +52,10 @@ const App: React.FC = () => {
         setIsSeller(false);
         setIsAdmin(false);
 
-        if (!authPages.includes(currentPageRef.current)) {
-          setCurrentPage('auth-choice');
+        const allowedPublicPages: Page[] = ['home', 'auth-buyer', 'auth-seller', 'admin-auth'];
+
+        if (!allowedPublicPages.includes(currentPageRef.current)) {
+          setCurrentPage('home');
         }
 
         return;
@@ -126,7 +130,6 @@ const App: React.FC = () => {
     if (authLoading || user) return;
 
     const protectedPages: Page[] = [
-      'home',
       'stores',
       'product',
       'cart',
@@ -143,7 +146,7 @@ const App: React.FC = () => {
     ];
 
     if (protectedPages.includes(currentPage)) {
-      setCurrentPage('auth-choice');
+      setCurrentPage('home');
     }
   }, [authLoading, currentPage, user]);
 
@@ -213,7 +216,7 @@ const App: React.FC = () => {
       case 'auth-seller':
         return <Auth type="seller" setPage={setCurrentPage} setIsSeller={setIsSeller} />;
       case 'auth-choice':
-        return <AuthChoice setPage={setCurrentPage} />;
+        return <Home setPage={setCurrentPage} onProductClick={navigateToProduct} onAddToCart={addToCart} onSearch={handleSearch} />;
       case 'product':
         return selectedProduct ? (
           <ProductDetail 
@@ -230,6 +233,17 @@ const App: React.FC = () => {
         return <SellerDashboard setPage={setCurrentPage} />;
       default:
         return <Home setPage={setCurrentPage} onProductClick={navigateToProduct} onAddToCart={addToCart} />;
+    }
+  };
+
+  const renderGuestOverlay = () => {
+    switch (currentPage) {
+      case 'auth-buyer':
+        return <Auth type="buyer" setPage={setCurrentPage} setIsSeller={setIsSeller} overlay />;
+      case 'auth-seller':
+        return <Auth type="seller" setPage={setCurrentPage} setIsSeller={setIsSeller} overlay />;
+      default:
+        return <AuthChoice setPage={setCurrentPage} overlay />;
     }
   };
 
@@ -250,22 +264,47 @@ const App: React.FC = () => {
       )}
       <Navbar setPage={setCurrentPage} cartCount={cart.length} user={user} isSeller={isSeller} onSearch={handleSearch} isHome={currentPage === 'home'} />
 
-      <main className={`flex-grow ${currentPage !== 'home' ? 'pt-[88px]' : ''}`}>
-        <AnimatePresence mode="wait">
+      <main className={`flex-grow relative ${currentPage !== 'home' ? 'pt-[88px]' : ''}`}>
+        {isGuestAuthFlow ? (
+          <>
+            <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
+              <div className="absolute inset-0 blur-[16px] saturate-75 scale-[1.03] origin-center">
+                <Home setPage={setCurrentPage} onProductClick={navigateToProduct} onAddToCart={addToCart} onSearch={handleSearch} />
+              </div>
+              <div className="absolute inset-0 bg-ink/30" />
+            </div>
 
-          <motion.div
-            key={currentPage}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.3, ease: "easeOut" }}
-          >
-            {renderPage()}
-          </motion.div>
-        </AnimatePresence>
+            <div className="relative z-30 min-h-[calc(100vh-88px)] flex items-start justify-center px-4 pt-24 sm:pt-28 md:pt-32 pb-8">
+              {renderGuestOverlay()}
+            </div>
+          </>
+        ) : (
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentPage}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
+            >
+              {renderPage()}
+            </motion.div>
+          </AnimatePresence>
+        )}
       </main>
 
-      <Footer setPage={setCurrentPage} />
+      {isGuestLocked ? (
+        <div className="fixed bottom-4 right-4 z-40">
+          <button
+            onClick={() => setCurrentPage('admin-auth')}
+            className="bg-ink/85 text-white border-2 border-white/20 px-4 py-2 font-label font-bold text-[10px] uppercase tracking-[0.25em] hover:bg-ink transition-colors"
+          >
+            Admin
+          </button>
+        </div>
+      ) : (
+        <Footer setPage={setCurrentPage} />
+      )}
     </div>
   );
 };
