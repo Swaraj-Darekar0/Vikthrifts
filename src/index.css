@@ -1,0 +1,93 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700;800;900&family=Manrope:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-headline: "Space Grotesk", sans-serif;
+  --font-body: "Manrope", sans-serif;
+  --font-label: "Space Mono", monospace;
+
+  --color-surface: #fcf8f8;
+  --color-primary-container: #a37343;
+  --color-secondary-container: #cbc0b2;
+  --color-tertiary: #c00018;
+  --color-ink: #0A0A0A;
+  --color-surface-container: #f0edec;
+  --color-surface-container-low: #f6f3f2;
+  --color-surface-container-lowest: #ffffff;
+  --color-on-surface-variant: #444933;
+}
+
+@layer base {
+  body {
+    @apply bg-surface text-ink font-body selection:bg-primary-container selection:text-ink;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body, #root {
+    min-width: 320px;
+  }
+
+  * {
+    min-width: 0;
+  }
+
+  img {
+    display: block;
+  }
+}
+
+@layer components {
+  .neo-shadow {
+    box-shadow: 4px 4px 0px 0px #0A0A0A;
+  }
+  .neo-shadow-sm {
+    box-shadow: 2px 2px 0px 0px #0A0A0A;
+  }
+  .neo-shadow-lg {
+    box-shadow: 8px 8px 0px 0px #0A0A0A;
+  }
+  .neo-shadow-primary {
+    box-shadow: 4px 4px 0px 0px #a37343;
+  }
+  .active-press:active {
+    @apply translate-x-[2px] translate-y-[2px] shadow-none;
+  }
+  .hard-press:active {
+    @apply translate-x-[4px] translate-y-[4px] shadow-none;
+  }
+}
+
+@media (max-width: 767px) {
+  .neo-shadow {
+    box-shadow: 3px 3px 0px 0px #0A0A0A;
+  }
+
+  .neo-shadow-sm {
+    box-shadow: 1.5px 1.5px 0px 0px #0A0A0A;
+  }
+
+  .neo-shadow-lg {
+    box-shadow: 5px 5px 0px 0px #0A0A0A;
+  }
+}
+
+@keyframes marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+@keyframes marquee-reverse {
+  0% { transform: translateX(-50%); }
+  100% { transform: translateX(0); }
+}
+
+.animate-marquee {
+  animation: marquee 30s linear infinite;
+}
+
+.animate-marquee-reverse {
+  animation: marquee-reverse 30s linear infinite;
+}

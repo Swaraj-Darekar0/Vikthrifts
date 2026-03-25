@@ -1,0 +1,77 @@
+Great — let's think this through properly before building anything.
+
+Let me map out exactly what a unified system would look like, drawing the best architectural idea from each startup into one coherent product.Good — let's think before we build. This is a design conversation, not a coding session yet.
+
+Here's how I'd architect the system, drawing one specific borrowed concept from each startup and weaving them into a single coherent product.
+
+---
+
+## The core idea: "FraudLens"
+
+Not just a fraud classifier. A **living behavioural intelligence platform** — the system understands *who a user normally is*, then flags when a transaction doesn't fit that identity. The differentiation is in how we construct that identity layer, and how we explain deviations from it.
+
+Here's the full process flow diagram first, then I'll break down what each startup contributes and exactly where.Click any node in the diagram — each one drills into the sub-question for that component. Now let me walk through the unique idea borrowed from each startup and exactly *why* it goes where.
+
+---
+
+## What we borrow from each startup, and where it plugs in
+
+**From Kita → Stage 1: The "self-building normalisation lookup"**
+
+Kita's key insight for emerging markets is that you can't hardcode a city dictionary — the data has to teach you its own aliases. So instead of a static `{"BOM": "Mumbai", "Bombay": "Mumbai"}` table, we build a lookup *from the data itself* using fuzzy string clustering (RapidFuzz + DBSCAN on edit distance). Every variant that clusters together gets canonicalised. Same technique applied to the `amt` shadow column — detect it structurally, not by name. This is exactly what the problem statement's Section 09 says top teams do that average teams don't.
+
+**From Casca → Stage 2: Multi-signal deduplication, not just exact-row matching**
+
+Casca's KYB engine has to reconcile the same business entity appearing across 3-4 registry sources with slightly different names, addresses, and registration formats. Their approach: build a composite key from multiple fields and flag any record where the key matches but one or more field values differ — treating it as a "fuzzy duplicate" requiring resolution rather than a drop. For our transaction data this means: `transaction_id` collision + differing `user_id`/`amount` → flag as retry-logic duplicate, not just delete. We quantify every class of data issue rather than silently dropping rows.
+
+**From Proximitty → Stage 3: The "User DNA" profile**
+
+This is the single biggest differentiator in your submission. Proximitty's unified lending data layer doesn't just aggregate data — it builds a *longitudinal identity* for each borrower. We do the same for each user: compute their `avg_spend`, `spend_std`, `home_city_mode`, `preferred_device`, `preferred_payment`, `typical_hour_mean`, `typical_merchant_categories`, `transaction_velocity_7d`. Every transaction is then evaluated *relative to this DNA* — not as an absolute value. A ₹50,000 transaction is suspicious for user A and normal for user B. The profile is the frame of reference.
+
+**From Omni → Stage 3 extension: Merchant-category longitudinal sequences**
+
+Omni's standout technique is reading *patterns across time* in a borrower's financials, not just point-in-time values. We do this for merchant categories: build a per-user sequence of merchant categories over the last 30 days and flag "category jump" — a user who has never transacted in Electronics suddenly making a ₹80K Electronics purchase. XGBoost handles tabular features well but misses sequence. We encode the sequence as a categorical feature: `new_category_for_user` (boolean) + `category_z_score` (how many std deviations above the user's average for that category).
+
+**From Fenrock AI → Stage 4 + 5: Structured audit trail, not just a prediction**
+
+This is the philosophical shift. Fenrock doesn't output `fraud=1`. It outputs a *case record*: which signals fired, what the deviation magnitude was, what the user's baseline was, and a confidence score. For the model output we don't just return a label — we return a structured JSON explanation per flagged transaction:
+
+```
+{
+  "fraud_probability": 0.91,
+  "signals_fired": ["geo_deviation_high", "new_device", "velocity_spike_3x"],
+  "user_baseline": {"avg_amount": 1200, "home_city": "Mumbai", "usual_device": "mobile"},
+  "this_transaction": {"amount": 47000, "city": "Delhi", "device": "web"},
+  "deviation_scores": {"amount": 4.2σ, "city": "never_seen", "device": "first_time"}
+}
+```
+
+This feeds directly into the dashboard and satisfies the explainability deliverable without needing SHAP from scratch — the features *are* the explanations.
+
+---
+
+## The ML model: fine-tune, not train
+
+Here's the specific model stack:
+
+The base model is **LightGBM** (already pre-trained on tabular classification tasks at scale — we fine-tune it on our engineered feature set). We don't train from zero. The fine-tuning workflow is:
+
+1. Use the Proximitty-style user DNA features as the primary feature matrix
+2. Add Omni-style sequence deviation features
+3. Fine-tune LightGBM with `class_weight='balanced'` (fraud is rare — this is critical)
+4. Wrap predictions in the Fenrock-style audit trail generator
+5. Use SHAP's `TreeExplainer` (built for LightGBM, zero training needed) for per-transaction explanations
+
+The result is a system that reports **precision, recall, and F1 separately** (not just accuracy), explains *every* flagged transaction, and handles the class imbalance that would cause a naive model to score zero.
+
+---
+
+## The web dashboard: what it shows
+
+Three views, each powered by a different startup's borrowed concept:
+
+- **Overview panel** (Fenrock) — live fraud alert feed with audit trail per transaction, filterable by signal type
+- **User DNA panel** (Proximitty) — per-user behavioural profile card showing baseline vs flagged transaction side-by-side
+- **Data quality panel** (Casca + Kita) — the EDA report: exact counts of every data quality issue found, city normalisation map, duplicate breakdown
+
+This is the complete mental model. When you're ready, we can start building — I'd suggest starting with the Python pipeline (Stages 1-3) first, then the model, then the dashboard on top. Want to proceed to implementation?
