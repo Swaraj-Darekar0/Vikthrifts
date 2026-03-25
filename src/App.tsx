@@ -38,6 +38,60 @@ const App: React.FC = () => {
   const isGuestLocked = !authLoading && !user;
   const isGuestAuthFlow = isGuestLocked && ['home', 'auth-choice', 'auth-buyer', 'auth-seller'].includes(currentPage);
 
+  const clearProductParam = () => {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('product');
+    window.history.replaceState(window.history.state, '', url.toString());
+  };
+
+  const loadProductFromUrl = async (productId: string) => {
+    // Try official drops first
+    const { data: adminData, error: adminError } = await supabase
+      .from('admin_products')
+      .select('*')
+      .eq('id', productId)
+      .maybeSingle();
+
+    if (adminError && adminError.code !== 'PGRST116') throw adminError;
+
+    if (adminData) {
+      return {
+        id: adminData.id,
+        name: adminData.name,
+        price: adminData.price,
+        image: adminData.image_url,
+        category: adminData.category,
+        size: adminData.size,
+        store: 'VIKTHRIFTS OFFICIAL',
+        description: adminData.description,
+        tags: adminData.tags || [],
+      };
+    }
+
+    // Then seller products
+    const { data: sellerData, error: sellerError } = await supabase
+      .from('products')
+      .select('*, stores(name)')
+      .eq('id', productId)
+      .maybeSingle();
+
+    if (sellerError && sellerError.code !== 'PGRST116') throw sellerError;
+
+    if (!sellerData) return null;
+
+    return {
+      id: sellerData.id,
+      name: sellerData.name,
+      price: sellerData.price,
+      image: sellerData.image_url,
+      category: sellerData.category,
+      size: sellerData.size,
+      store: sellerData.stores?.name || 'Unknown Store',
+      description: sellerData.description,
+      tags: sellerData.tags || [],
+    };
+  };
+
   useEffect(() => {
     currentPageRef.current = currentPage;
   }, [currentPage]);
@@ -149,6 +203,62 @@ const App: React.FC = () => {
       setCurrentPage('home');
     }
   }, [authLoading, currentPage, user]);
+
+  useEffect(() => {
+    // Keep URL in sync when viewing a product
+    const url = new URL(window.location.href);
+    const urlProduct = url.searchParams.get('product');
+
+    if (currentPage === 'product' && selectedProduct?.id) {
+      if (urlProduct !== selectedProduct.id) {
+        url.searchParams.set('product', selectedProduct.id);
+        window.history.replaceState({ page: 'product', productId: selectedProduct.id }, '', url.toString());
+      }
+      return;
+    }
+
+    if (urlProduct) {
+      url.searchParams.delete('product');
+      window.history.replaceState(window.history.state, '', url.toString());
+    }
+  }, [currentPage, selectedProduct?.id]);
+
+  useEffect(() => {
+    // Support opening shared links like `?product=<uuid>`
+    if (!user) return;
+
+    const syncFromUrl = async () => {
+      const url = new URL(window.location.href);
+      const productId = url.searchParams.get('product');
+      if (!productId) return;
+
+      try {
+        const loaded = await loadProductFromUrl(productId);
+        if (!loaded) {
+          clearProductParam();
+          setCurrentPage('home');
+          return;
+        }
+
+        setSelectedProduct(loaded);
+        setCurrentPage('product');
+      } catch (e) {
+        console.error('[App] Failed to load product from URL:', e);
+        clearProductParam();
+        setCurrentPage('home');
+      }
+    };
+
+    syncFromUrl();
+
+    const onPopState = () => {
+      // Re-run to handle browser back/forward affecting query params.
+      syncFromUrl();
+    };
+
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [user]);
 
   const addToCart = (product: Product) => {
     setCart(prev => [...prev, product]);

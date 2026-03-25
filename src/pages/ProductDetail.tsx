@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Product } from '../types';
 import { PRODUCTS } from '../constants';
 import { ProductCard } from '../components/ProductCard';
-import { ShoppingCart, Share2, Heart, ShieldCheck, Truck, RotateCcw } from 'lucide-react';
+import { ShoppingCart, Share2, ShieldCheck, Truck, X, Copy, Mail, MessageCircle, Send, Twitter } from 'lucide-react';
 
 interface ProductDetailProps {
   product: Product;
@@ -12,6 +12,68 @@ interface ProductDetailProps {
 
 export const ProductDetail: React.FC<ProductDetailProps> = ({ product, onAddToCart, onProductClick }) => {
   const relatedProducts = PRODUCTS.filter(p => p.id !== product.id).slice(0, 4);
+  const [shareMessage, setShareMessage] = useState<string | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
+
+  const sharePayload = useMemo(() => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('product', product.id);
+    const shareUrl = url.toString();
+    const shareText = `${product.name} from ${product.store} for Rs. ${product.price}`;
+    return { shareUrl, shareText };
+  }, [product.id, product.name, product.price, product.store]);
+
+  useEffect(() => {
+    if (!shareOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShareOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [shareOpen]);
+
+  const setTimedMessage = (msg: string) => {
+    setShareMessage(msg);
+    window.setTimeout(() => setShareMessage(null), 2500);
+  };
+
+  const handleNativeShare = async () => {
+    try {
+      if (!navigator.share) return false;
+      await navigator.share({
+        title: product.name,
+        text: sharePayload.shareText,
+        url: sharePayload.shareUrl,
+      });
+      setTimedMessage('Product shared.');
+      return true;
+    } catch (error: any) {
+      if (error?.name === 'AbortError') return true;
+      return false;
+    }
+  };
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(`${sharePayload.shareText}\n${sharePayload.shareUrl}`);
+      setTimedMessage('Link copied.');
+    } catch {
+      setTimedMessage('Unable to copy link.');
+    }
+  };
+
+  const openShareLink = (href: string) => {
+    window.open(href, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleShareClick = async () => {
+    const usedNative = await handleNativeShare();
+    if (!usedNative) {
+      // Fallback: copy link immediately, then show share options.
+      await handleCopyLink();
+      setShareOpen(true);
+    }
+  };
 
   return (
     <div className="py-8 md:py-12 px-4 md:px-8 max-w-7xl mx-auto w-full">
@@ -84,13 +146,18 @@ export const ProductDetail: React.FC<ProductDetailProps> = ({ product, onAddToCa
               >
                 ADD TO CART <ShoppingCart size={24} />
               </button>
-              <div className="grid grid-cols-2 sm:flex gap-3 md:gap-4">
-              <button className="p-4 md:p-5 border-4 border-ink bg-white neo-shadow hover:neo-shadow-lg active-press transition-all flex items-center justify-center">
-                <Heart size={24} />
-              </button>
-              <button className="p-4 md:p-5 border-4 border-ink bg-white neo-shadow hover:neo-shadow-lg active-press transition-all flex items-center justify-center">
+              <div className="grid grid-cols-1 gap-2">
+              <button
+                onClick={handleShareClick}
+                className="p-4 md:p-5 border-4 border-ink bg-white neo-shadow hover:neo-shadow-lg active-press transition-all flex items-center justify-center"
+              >
                 <Share2 size={24} />
               </button>
+              {shareMessage && (
+                <p className="font-label font-bold text-[10px] uppercase tracking-widest text-ink/50 text-center">
+                  {shareMessage}
+                </p>
+              )}
               </div>
             </div>
           </div>
@@ -104,13 +171,98 @@ export const ProductDetail: React.FC<ProductDetailProps> = ({ product, onAddToCa
               <Truck className="text-tertiary" />
               <span className="font-label font-bold text-[10px] uppercase">WORLDWIDE<br />SHIPPING</span>
             </div>
-            <div className="flex items-center gap-3">
-              <RotateCcw className="text-tertiary" />
-              <span className="font-label font-bold text-[10px] uppercase">7-DAY<br />RETURNS</span>
-            </div>
+
           </div>
         </div>
       </div>
+
+      {shareOpen && (
+        <div
+          className="fixed inset-0 z-[120] bg-ink/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4"
+          onClick={() => setShareOpen(false)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="w-full max-w-lg bg-surface border-4 border-ink neo-shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-4 p-4 sm:p-5 border-b-4 border-ink bg-white">
+              <div className="min-w-0">
+                <p className="font-label font-bold text-[11px] uppercase tracking-[0.25em] text-ink/50">Share</p>
+                <p className="font-headline font-black text-xl uppercase truncate">{product.name}</p>
+              </div>
+              <button
+                onClick={() => setShareOpen(false)}
+                className="p-2 border-2 border-ink bg-white hover:bg-secondary-container active-press"
+                aria-label="Close share dialog"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-4 sm:p-5 space-y-4">
+              <div className="border-4 border-ink bg-white p-3">
+                <p className="font-label font-bold text-[10px] uppercase tracking-widest text-ink/45 mb-1">Link</p>
+                <p className="font-body font-bold text-xs text-ink/70 break-all">{sharePayload.shareUrl}</p>
+              </div>
+              {shareMessage && (
+                <p className="font-label font-bold text-[10px] uppercase tracking-widest text-ink/60 text-center">
+                  {shareMessage}
+                </p>
+              )}
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <button
+                  onClick={handleCopyLink}
+                  className="flex items-center justify-center gap-2 border-4 border-ink bg-primary-container py-3 font-headline font-black text-sm uppercase neo-shadow hover:opacity-90 active-press"
+                >
+                  <Copy size={16} /> Copy
+                </button>
+
+                <button
+                  onClick={() => openShareLink(`mailto:?subject=${encodeURIComponent(product.name)}&body=${encodeURIComponent(`${sharePayload.shareText}\n${sharePayload.shareUrl}`)}`)}
+                  className="flex items-center justify-center gap-2 border-4 border-ink bg-white py-3 font-headline font-black text-sm uppercase neo-shadow hover:bg-secondary-container active-press"
+                >
+                  <Mail size={16} /> Email
+                </button>
+
+                <button
+                  onClick={() => openShareLink(`https://wa.me/?text=${encodeURIComponent(`${sharePayload.shareText} ${sharePayload.shareUrl}`)}`)}
+                  className="flex items-center justify-center gap-2 border-4 border-ink bg-white py-3 font-headline font-black text-sm uppercase neo-shadow hover:bg-secondary-container active-press"
+                >
+                  <MessageCircle size={16} /> WhatsApp
+                </button>
+
+                <button
+                  onClick={() => openShareLink(`https://t.me/share/url?url=${encodeURIComponent(sharePayload.shareUrl)}&text=${encodeURIComponent(sharePayload.shareText)}`)}
+                  className="flex items-center justify-center gap-2 border-4 border-ink bg-white py-3 font-headline font-black text-sm uppercase neo-shadow hover:bg-secondary-container active-press"
+                >
+                  <Send size={16} /> Telegram
+                </button>
+
+                <button
+                  onClick={() => openShareLink(`https://twitter.com/intent/tweet?text=${encodeURIComponent(`${sharePayload.shareText} ${sharePayload.shareUrl}`)}`)}
+                  className="flex items-center justify-center gap-2 border-4 border-ink bg-white py-3 font-headline font-black text-sm uppercase neo-shadow hover:bg-secondary-container active-press"
+                >
+                  <Twitter size={16} /> X
+                </button>
+
+                <button
+                  onClick={async () => {
+                    const usedNative = await handleNativeShare();
+                    if (usedNative) setShareOpen(false);
+                    if (!usedNative) setTimedMessage('Sharing is not supported on this device.');
+                  }}
+                  className="flex items-center justify-center gap-2 border-4 border-ink bg-white py-3 font-headline font-black text-sm uppercase neo-shadow hover:bg-secondary-container active-press"
+                >
+                  <Share2 size={16} /> More
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Complete the Kit */}
       <section className="pt-16 md:pt-24 border-t-4 border-ink">
