@@ -25,6 +25,7 @@ const getStoreName = (stores: { name: string }[] | { name: string } | null | und
 
 export const Products: React.FC<ProductsProps> = ({ mode, onBack, onProductClick, onAddToCart }) => {
   const [products, setProducts] = useState<Product[]>([]);
+  const [totalProductCount, setTotalProductCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
@@ -118,6 +119,45 @@ export const Products: React.FC<ProductsProps> = ({ mode, onBack, onProductClick
   }, [loadProducts]);
 
   useEffect(() => {
+    const fetchTotalProductCount = async () => {
+      try {
+        if (mode === 'official') {
+          let query = supabase
+            .from('admin_products')
+            .select('*', { count: 'exact', head: true })
+            .eq('active', true);
+
+          if (sizeFilter !== 'all') {
+            query = query.eq('size', sizeFilter);
+          }
+
+          const { count, error } = await query;
+          if (error) throw error;
+          setTotalProductCount(count || 0);
+          return;
+        }
+
+        let query = supabase
+          .from('products')
+          .select('*', { count: 'exact', head: true });
+
+        if (sizeFilter !== 'all') {
+          query = query.eq('size', sizeFilter);
+        }
+
+        const { count, error } = await query;
+        if (error) throw error;
+        setTotalProductCount(count || 0);
+      } catch (error) {
+        console.error(`Error fetching ${mode} product count:`, error);
+        setTotalProductCount(0);
+      }
+    };
+
+    void fetchTotalProductCount();
+  }, [mode, sizeFilter]);
+
+  useEffect(() => {
     if (loading || loadingMore || !hasMore) return;
 
     const sentinel = sentinelRef.current;
@@ -208,9 +248,9 @@ export const Products: React.FC<ProductsProps> = ({ mode, onBack, onProductClick
 
         <div className="bg-secondary-container border-4 border-ink px-4 py-3 neo-shadow">
           <p className="font-label font-bold text-[11px] uppercase tracking-widest text-ink/50 mb-2">
-            Loaded Products
+            Total Products Available
           </p>
-          <p className="font-headline font-black text-2xl uppercase">{products.length}</p>
+          <p className="font-headline font-black text-2xl uppercase">{totalProductCount}</p>
         </div>
       </div>
 
