@@ -129,7 +129,7 @@ export const Navbar: React.FC<NavbarProps> = ({ setPage, cartCount, user, isSell
           </button>
           <button
             onClick={() => setMobileMenuOpen(prev => !prev)}
-            className="md:hidden p-2 border-2 border-ink neo-shadow-sm bg-white active-press"
+            className="md:hidden p-2 border-2 border-ink neo-shadow-sm bg-white text-ink active-press"
             aria-label="Toggle navigation menu"
           >
             {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
