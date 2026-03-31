@@ -98,9 +98,6 @@ export const ContactUs: React.FC<ContactUsProps> = ({ setPage }) => {
               <button type="button" onClick={openInstagram} className="p-4 bg-ink text-white hover:bg-tertiary transition-colors border-4 border-ink neo-shadow">
                 <Instagram size={24} />
               </button>
-              <button className="p-4 bg-ink text-white hover:bg-tertiary transition-colors border-4 border-ink neo-shadow">
-                <Twitter size={24} />
-              </button>
             </div>
           </div>
         </div>
