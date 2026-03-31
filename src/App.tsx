@@ -369,7 +369,10 @@ const App: React.FC = () => {
   }, [user]);
 
   const addToCart = (product: Product) => {
-    setCart(prev => [...prev, product]);
+    setCart(prev => {
+      const alreadyInCart = prev.some(item => item.id === product.id && item.store === product.store);
+      return alreadyInCart ? prev : [...prev, product];
+    });
   };
 
   const removeFromCart = (productId: string) => {

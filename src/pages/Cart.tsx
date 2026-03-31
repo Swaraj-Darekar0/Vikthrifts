@@ -1,6 +1,6 @@
 import React from 'react';
 import { Product, Page } from '../types';
-import { Trash2, ArrowRight, ShoppingBag, Minus, Plus } from 'lucide-react';
+import { Trash2, ArrowRight, ShoppingBag } from 'lucide-react';
 
 interface CartProps {
   items: Product[];
@@ -10,7 +10,7 @@ interface CartProps {
 
 export const Cart: React.FC<CartProps> = ({ items, onRemove, setPage }) => {
   const subtotal = items.reduce((acc, item) => acc + item.price, 0);
-  const shipping = items.length > 0 ? 15 : 0;
+  const shipping = items.length > 0 ? 60 : 0;
   const total = subtotal + shipping;
 
   return (
@@ -47,11 +47,9 @@ export const Cart: React.FC<CartProps> = ({ items, onRemove, setPage }) => {
                   </div>
                   
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 mt-4">
-                    <div className="flex items-center border-2 border-ink bg-surface-container neo-shadow-sm">
-                      <button className="p-2 hover:bg-white transition-colors"><Minus size={14} /></button>
-                      <span className="px-4 font-label font-bold">1</span>
-                      <button className="p-2 hover:bg-white transition-colors"><Plus size={14} /></button>
-                    </div>
+                    <span className="font-label text-xs font-bold uppercase tracking-widest text-ink/45">
+                      Single item
+                    </span>
                     <span className="font-headline font-black text-xl md:text-2xl">Rs. {item.price}</span>
                   </div>
                 </div>
