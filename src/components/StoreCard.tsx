@@ -41,7 +41,9 @@ export const StoreCard: React.FC<StoreCardProps> = ({ store, onClick }) => {
         </p>
         
         <div className="flex flex-wrap gap-1 sm:gap-2 mb-2.5 sm:mb-4">
-          {store.tags.map(tag => (
+          {store.tags
+            .filter(tag => tag.toLowerCase() !== 'new' && tag.toLowerCase() !== '#new')
+            .map(tag => (
             <span key={tag} className="font-label text-[8px] sm:text-[10px] font-bold bg-surface-container border border-ink px-1.5 py-0.5 uppercase">
               #{tag}
             </span>
