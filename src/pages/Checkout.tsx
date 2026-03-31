@@ -48,7 +48,7 @@ export const Checkout: React.FC<CheckoutProps> = ({ items, setPage, onOrderPlace
   });
 
   const subtotal = useMemo(() => items.reduce((acc, item) => acc + item.price, 0), [items]);
-  const shipping = items.length > 0 ? 15 : 0;
+  const shipping = items.length > 0 ? 60 : 0;
   const total = subtotal + shipping;
 
   useEffect(() => {

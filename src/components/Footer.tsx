@@ -1,6 +1,7 @@
 import React from 'react';
 import { Instagram, Mail } from 'lucide-react';
 import { Page } from '../types';
+import { INSTAGRAM_URL } from '../constants';
 
 interface FooterProps {
   setPage?: (page: Page) => void;
@@ -9,7 +10,7 @@ interface FooterProps {
 export const Footer: React.FC<FooterProps> = ({ setPage }) => {
   const socialLinks = [
     {
-      href: 'https://www.instagram.com/thrift_byvik?igsh=MW91bGpnMmU4ZDFocw%3D%3D&utm_source=qr',
+      href: INSTAGRAM_URL,
       label: 'Instagram',
       Icon: Instagram,
     },

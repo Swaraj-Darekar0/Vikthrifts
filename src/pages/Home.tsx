@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Page, Product, Store, AdminProduct } from '../types';
+import { Page, Product, Store, AdminProduct, ProductCollectionMode } from '../types';
 import { StoreCard } from '../components/StoreCard';
 import { ProductCard } from '../components/ProductCard';
 import { Marquee } from '../components/Marquee';
@@ -13,11 +13,14 @@ interface HomeProps {
   onProductClick: (product: Product) => void;
   onAddToCart: (product: Product) => void;
   onSearch: (query: string) => void;
+  onStoreClick: (store: Store) => void;
+  onViewAllProducts: (mode: ProductCollectionMode) => void;
 }
 
-export const Home: React.FC<HomeProps> = ({ setPage, onProductClick, onAddToCart, onSearch }) => {
+export const Home: React.FC<HomeProps> = ({ setPage, onProductClick, onAddToCart, onSearch, onStoreClick, onViewAllProducts }) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [stores, setStores] = useState<Store[]>([]);
+  const [totalStoreCount, setTotalStoreCount] = useState(0);
   const [adminProducts, setAdminProducts] = useState<AdminProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchVal, setSearchVal] = useState('');
@@ -30,13 +33,19 @@ export const Home: React.FC<HomeProps> = ({ setPage, onProductClick, onAddToCart
           .from('stores')
           .select('*')
           .limit(4);
+
+        const { count: storesCount, error: storesCountError } = await supabase
+          .from('stores')
+          .select('*', { count: 'exact', head: true });
         
         if (storesError) throw storesError;
+        if (storesCountError) throw storesCountError;
 
         // Fetch Products
         const { data: productsData, error: productsError } = await supabase
           .from('products')
           .select('*, stores(name)')
+          .order('created_at', { ascending: false })
           .limit(8);
 
         if (productsError) throw productsError;
@@ -46,7 +55,8 @@ export const Home: React.FC<HomeProps> = ({ setPage, onProductClick, onAddToCart
           .from('admin_products')
           .select('*')
           .eq('active', true)
-          .limit(4);
+          .order('created_at', { ascending: false })
+          .limit(8);
 
         if (adminError && adminError.code !== '42P01') throw adminError; // Ignore if table missing
 
@@ -65,6 +75,7 @@ export const Home: React.FC<HomeProps> = ({ setPage, onProductClick, onAddToCart
           ratingCount: storeMetrics.get(s.id)?.ratingCount || 0,
           image: s.image_url
         })));
+        setTotalStoreCount(storesCount || 0);
 
         setProducts(productsData.map(p => ({
           id: p.id,
@@ -146,6 +157,12 @@ export const Home: React.FC<HomeProps> = ({ setPage, onProductClick, onAddToCart
                 Fresh official pieces from the in-house archive, styled to feel cleaner and easier to browse on mobile.
               </p>
             </div>
+            <button
+              onClick={() => onViewAllProducts('official')}
+              className="font-label font-bold text-sm border-b-4 border-ink hover:text-tertiary transition-colors pb-1"
+            >
+              VIEW ALL
+            </button>
           </div>
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 lg:gap-8">
@@ -175,12 +192,14 @@ export const Home: React.FC<HomeProps> = ({ setPage, onProductClick, onAddToCart
             <span className="font-label font-bold text-sm text-tertiary mb-2 block uppercase tracking-widest">TOP RATED</span>
             <h2 className="font-headline font-black text-4xl md:text-6xl tracking-tighter uppercase">FEATURED STORES</h2>
           </div>
-          <button 
-            onClick={() => setPage('stores')}
-            className="font-label font-bold text-sm border-b-4 border-ink hover:text-tertiary transition-colors pb-1"
-          >
-            VIEW ALL STORES
-          </button>
+          {totalStoreCount > 4 && (
+            <button 
+              onClick={() => setPage('stores')}
+              className="font-label font-bold text-sm border-b-4 border-ink hover:text-tertiary transition-colors pb-1"
+            >
+              VIEW ALL STORES
+            </button>
+          )}
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 lg:gap-8">
@@ -194,7 +213,7 @@ export const Home: React.FC<HomeProps> = ({ setPage, onProductClick, onAddToCart
             </div>
           ) : (
             stores.map(store => (
-              <StoreCard key={store.id} store={store} onClick={() => setPage('stores')} />
+              <StoreCard key={store.id} store={store} onClick={() => onStoreClick(store)} />
             ))
           )}
         </div>
@@ -244,7 +263,10 @@ export const Home: React.FC<HomeProps> = ({ setPage, onProductClick, onAddToCart
             <span className="font-label font-bold text-sm text-tertiary mb-2 block uppercase tracking-widest">CURATED SELECTION</span>
             <h2 className="font-headline font-black text-4xl md:text-6xl tracking-tighter uppercase">HOT DROPS</h2>
           </div>
-          <button className="font-label font-bold text-sm border-b-4 border-ink hover:text-tertiary transition-colors pb-1">
+          <button
+            onClick={() => onViewAllProducts('marketplace')}
+            className="font-label font-bold text-sm border-b-4 border-ink hover:text-tertiary transition-colors pb-1"
+          >
             VIEW ALL PRODUCTS
           </button>
         </div>

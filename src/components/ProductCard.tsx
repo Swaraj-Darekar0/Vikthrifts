@@ -12,7 +12,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onAdd, onClic
   return (
     <div 
       onClick={onClick}
-      className="group bg-white border-4 border-ink neo-shadow hover:neo-shadow-lg transition-all cursor-pointer flex flex-col h-full active-press overflow-hidden"
+      className="group bg-white border-4 border-ink transition-all cursor-pointer flex flex-col h-full active-press overflow-hidden"
     >
       <div className="relative aspect-square overflow-hidden border-b-4 border-ink bg-surface-container">
         <img 

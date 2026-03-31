@@ -1,6 +1,8 @@
-export type Page = 'home' | 'stores' | 'product' | 'cart' | 'checkout' | 'auth-buyer' | 'auth-seller' | 'auth-choice' | 'seller-dashboard' | 'store-detail' | 'help-center' | 'shipping' | 'returns' | 'contact' | 'profile' | 'admin-auth' | 'admin-dashboard' | 'search';
+export type Page = 'home' | 'stores' | 'products' | 'product' | 'cart' | 'checkout' | 'auth-buyer' | 'auth-seller' | 'auth-choice' | 'seller-dashboard' | 'store-detail' | 'help-center' | 'shipping' | 'returns' | 'contact' | 'profile' | 'admin-auth' | 'admin-dashboard' | 'search';
+export type ProductCollectionMode = 'official' | 'marketplace';
 
 export type OrderStatus = 'pending' | 'processing' | 'shipped' | 'delivered' | 'completed' | 'cancelled';
+export type ContactInquiryStatus = 'new' | 'in_progress' | 'resolved';
 
 export interface Product {
   id: string;
@@ -58,4 +60,14 @@ export interface Order {
   status: OrderStatus;
   tracking_id: string | null;
   tracking_website: string | null;
+}
+
+export interface ContactInquiry {
+  id: string;
+  created_at: string;
+  name: string;
+  email: string;
+  topic: string;
+  message: string;
+  status: ContactInquiryStatus;
 }

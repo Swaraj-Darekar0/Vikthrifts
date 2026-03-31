@@ -4,16 +4,25 @@ import { ArrowLeft, Star, Package, Loader2 } from 'lucide-react';
 import { supabase } from '../supabase';
 import { ProductCard } from '../components/ProductCard';
 
+const SIZE_OPTIONS = ['all', 'S', 'M', 'L', 'XL', '2XL'] as const;
+const PRICE_SORT_OPTIONS = ['newest', 'low-to-high', 'high-to-low'] as const;
+
+type SizeFilter = (typeof SIZE_OPTIONS)[number];
+type PriceSort = (typeof PRICE_SORT_OPTIONS)[number];
+
 interface StoreDetailProps {
   store: Store;
   setPage: (page: Page) => void;
   onProductClick: (product: Product) => void;
   onAddToCart: (product: Product) => void;
+  onBack: () => void;
 }
 
-export const StoreDetail: React.FC<StoreDetailProps> = ({ store, setPage, onProductClick, onAddToCart }) => {
+export const StoreDetail: React.FC<StoreDetailProps> = ({ store, setPage, onProductClick, onAddToCart, onBack }) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sizeFilter, setSizeFilter] = useState<SizeFilter>('all');
+  const [priceSort, setPriceSort] = useState<PriceSort>('newest');
   const [averageRating, setAverageRating] = useState(store.rating || 0);
   const [ratingCount, setRatingCount] = useState(store.ratingCount || 0);
   const [userRating, setUserRating] = useState<number | null>(null);
@@ -23,15 +32,25 @@ export const StoreDetail: React.FC<StoreDetailProps> = ({ store, setPage, onProd
   useEffect(() => {
     const fetchStoreContent = async () => {
       try {
+        const sortColumn = priceSort === 'newest' ? 'created_at' : 'price';
+        const isAscending = priceSort === 'low-to-high';
+
+        let productsQuery = supabase
+          .from('products')
+          .select('*')
+          .eq('store_id', store.id)
+          .order(sortColumn, { ascending: priceSort === 'newest' ? false : isAscending });
+
+        if (sizeFilter !== 'all') {
+          productsQuery = productsQuery.eq('size', sizeFilter);
+        }
+
         const [
           { data: productsData, error: productsError },
           { data: ratingsData, error: ratingsError },
           { data: authData, error: authError },
         ] = await Promise.all([
-          supabase
-            .from('products')
-            .select('*')
-            .eq('store_id', store.id),
+          productsQuery,
           supabase
             .from('store_ratings')
             .select('buyer_id, rating')
@@ -71,7 +90,7 @@ export const StoreDetail: React.FC<StoreDetailProps> = ({ store, setPage, onProd
     };
 
     fetchStoreContent();
-  }, [store.id, store.name]);
+  }, [priceSort, sizeFilter, store.id, store.name]);
 
   const handleRateStore = async (rating: number) => {
     setSubmittingRating(true);
@@ -144,7 +163,7 @@ export const StoreDetail: React.FC<StoreDetailProps> = ({ store, setPage, onProd
         </div>
 
         <button
-          onClick={() => setPage('stores')}
+          onClick={onBack}
           className="absolute top-4 left-4 md:top-8 md:left-8 bg-white text-ink p-2.5 md:p-3 border-4 border-ink neo-shadow hover:bg-tertiary hover:text-white transition-colors"
         >
           <ArrowLeft size={24} />
@@ -196,6 +215,48 @@ export const StoreDetail: React.FC<StoreDetailProps> = ({ store, setPage, onProd
               <Package size={28} /> LATEST DROPS
             </h2>
 
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4 mb-6 md:mb-8">
+              <div className="bg-white border-4 border-ink px-4 py-3 neo-shadow">
+                <label className="block font-label font-bold text-[11px] uppercase tracking-widest text-ink/50 mb-2">
+                  Filter By Size
+                </label>
+                <select
+                  value={sizeFilter}
+                  onChange={(event) => setSizeFilter(event.target.value as SizeFilter)}
+                  className="w-full bg-transparent font-headline font-black uppercase outline-none"
+                >
+                  <option value="all">All Sizes</option>
+                  <option value="S">S</option>
+                  <option value="M">M</option>
+                  <option value="L">L</option>
+                  <option value="XL">XL</option>
+                  <option value="2XL">2XL</option>
+                </select>
+              </div>
+
+              <div className="bg-white border-4 border-ink px-4 py-3 neo-shadow">
+                <label className="block font-label font-bold text-[11px] uppercase tracking-widest text-ink/50 mb-2">
+                  Filter By Price
+                </label>
+                <select
+                  value={priceSort}
+                  onChange={(event) => setPriceSort(event.target.value as PriceSort)}
+                  className="w-full bg-transparent font-headline font-black uppercase outline-none"
+                >
+                  <option value="newest">Newest First</option>
+                  <option value="low-to-high">Low To High</option>
+                  <option value="high-to-low">High To Low</option>
+                </select>
+              </div>
+
+              <div className="bg-secondary-container border-4 border-ink px-4 py-3 neo-shadow">
+                <p className="font-label font-bold text-[11px] uppercase tracking-widest text-ink/50 mb-2">
+                  Showing Products
+                </p>
+                <p className="font-headline font-black text-2xl uppercase">{products.length}</p>
+              </div>
+            </div>
+
             {loading ? (
               <div className="flex justify-center py-20 md:py-24">
                 <Loader2 className="animate-spin text-ink" size={48} />
@@ -207,7 +268,10 @@ export const StoreDetail: React.FC<StoreDetailProps> = ({ store, setPage, onProd
                     key={product.id}
                     product={product}
                     onClick={() => onProductClick(product)}
-                    onAdd={() => onAddToCart(product)}
+                    onAdd={(event) => {
+                      event.stopPropagation();
+                      onAddToCart(product);
+                    }}
                   />
                 ))}
               </div>

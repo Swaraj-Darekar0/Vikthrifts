@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
-import { Page, Product } from './types';
+import { Page, Product, ProductCollectionMode } from './types';
 import { Home } from './pages/Home';
 import { Stores } from './pages/Stores';
 import { Auth } from './pages/Auth';
@@ -19,6 +19,7 @@ import { Profile } from './pages/Profile';
 import { SearchResults } from './pages/SearchResults';
 import { AdminAuth } from './pages/AdminAuth';
 import { AdminDashboard } from './pages/AdminDashboard';
+import { Products } from './pages/Products';
 import { motion, AnimatePresence } from 'motion/react';
 import { Loader2 } from 'lucide-react';
 import { supabase } from './supabase';
@@ -70,6 +71,12 @@ const App: React.FC = () => {
   const [cart, setCart] = useState<Product[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedStore, setSelectedStore] = useState<any>(null); // Store | null
+  const [selectedProductCollection, setSelectedProductCollection] = useState<ProductCollectionMode>('marketplace');
+  const [previousPage, setPreviousPage] = useState<{
+    page: Page;
+    selectedStore: any | null;
+    selectedProductCollection: ProductCollectionMode;
+  } | null>(null);
   const [isSeller, setIsSeller] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [user, setUser] = useState<any>(null);
@@ -285,6 +292,7 @@ const App: React.FC = () => {
 
     const protectedPages: Page[] = [
       'stores',
+      'products',
       'product',
       'cart',
       'checkout',
@@ -373,14 +381,49 @@ const App: React.FC = () => {
   };
 
   const navigateToProduct = (product: Product) => {
+    setPreviousPage({
+      page: currentPage,
+      selectedStore,
+      selectedProductCollection,
+    });
     setSelectedProduct(product);
     setCurrentPage('product');
     window.scrollTo(0, 0);
   };
 
   const navigateToStore = (store: any) => {
+    setPreviousPage({
+      page: currentPage,
+      selectedStore,
+      selectedProductCollection,
+    });
     setSelectedStore(store);
     setCurrentPage('store-detail');
+    window.scrollTo(0, 0);
+  };
+
+  const navigateToProducts = (mode: ProductCollectionMode) => {
+    setPreviousPage({
+      page: currentPage,
+      selectedStore,
+      selectedProductCollection,
+    });
+    setSelectedProductCollection(mode);
+    setCurrentPage('products');
+    window.scrollTo(0, 0);
+  };
+
+  const navigateBack = (fallbackPage: Page = 'home') => {
+    if (!previousPage) {
+      setCurrentPage(fallbackPage);
+      window.scrollTo(0, 0);
+      return;
+    }
+
+    setSelectedStore(previousPage.selectedStore);
+    setSelectedProductCollection(previousPage.selectedProductCollection);
+    setCurrentPage(previousPage.page);
+    setPreviousPage(null);
     window.scrollTo(0, 0);
   };
 
@@ -393,11 +436,20 @@ const App: React.FC = () => {
   const renderPage = () => {
     switch (currentPage) {
       case 'home':
-        return <Home setPage={setCurrentPage} onProductClick={navigateToProduct} onAddToCart={addToCart} onSearch={handleSearch} />;
+        return <Home setPage={setCurrentPage} onProductClick={navigateToProduct} onAddToCart={addToCart} onSearch={handleSearch} onStoreClick={navigateToStore} onViewAllProducts={navigateToProducts} />;
       case 'search':
         return <SearchResults query={searchQuery} onProductClick={navigateToProduct} onAddToCart={addToCart} />;
       case 'stores':
         return <Stores setPage={setCurrentPage} onStoreClick={navigateToStore} />;
+      case 'products':
+        return (
+          <Products
+            mode={selectedProductCollection}
+            onBack={() => navigateBack('home')}
+            onProductClick={navigateToProduct}
+            onAddToCart={addToCart}
+          />
+        );
       case 'store-detail':
         return selectedStore ? (
           <StoreDetail 
@@ -405,6 +457,7 @@ const App: React.FC = () => {
             setPage={setCurrentPage} 
             onProductClick={navigateToProduct}
             onAddToCart={addToCart}
+            onBack={() => navigateBack('stores')}
           />
         ) : null;
       case 'help-center':
@@ -426,13 +479,14 @@ const App: React.FC = () => {
       case 'auth-seller':
         return <Auth type="seller" setPage={setCurrentPage} setIsSeller={setIsSeller} />;
       case 'auth-choice':
-        return <Home setPage={setCurrentPage} onProductClick={navigateToProduct} onAddToCart={addToCart} onSearch={handleSearch} />;
+        return <Home setPage={setCurrentPage} onProductClick={navigateToProduct} onAddToCart={addToCart} onSearch={handleSearch} onStoreClick={navigateToStore} onViewAllProducts={navigateToProducts} />;
       case 'product':
         return selectedProduct ? (
           <ProductDetail 
             product={selectedProduct} 
             onAddToCart={addToCart} 
             onProductClick={navigateToProduct}
+            onBack={() => navigateBack('home')}
           />
         ) : null;
       case 'cart':
@@ -442,7 +496,7 @@ const App: React.FC = () => {
       case 'seller-dashboard':
         return <SellerDashboard setPage={setCurrentPage} />;
       default:
-        return <Home setPage={setCurrentPage} onProductClick={navigateToProduct} onAddToCart={addToCart} />;
+        return <Home setPage={setCurrentPage} onProductClick={navigateToProduct} onAddToCart={addToCart} onSearch={handleSearch} onStoreClick={navigateToStore} onViewAllProducts={navigateToProducts} />;
     }
   };
 
@@ -479,7 +533,7 @@ const App: React.FC = () => {
           <>
             <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
               <div className="absolute inset-0 blur-[16px] saturate-75 scale-[1.03] origin-center">
-                <Home setPage={setCurrentPage} onProductClick={navigateToProduct} onAddToCart={addToCart} onSearch={handleSearch} />
+                <Home setPage={setCurrentPage} onProductClick={navigateToProduct} onAddToCart={addToCart} onSearch={handleSearch} onStoreClick={navigateToStore} onViewAllProducts={navigateToProducts} />
               </div>
               <div className="absolute inset-0 bg-ink/30" />
             </div>

@@ -1,16 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Product } from '../types';
 import { ProductCard } from '../components/ProductCard';
-import { ShoppingCart, Share2, ShieldCheck, Truck, X, Copy, Mail, MessageCircle, Send, Twitter } from 'lucide-react';
+import { ArrowLeft, ShoppingCart, Share2, ShieldCheck, Truck, X, Copy, Mail, MessageCircle, Send, Twitter } from 'lucide-react';
 import { supabase } from '../supabase';
 
 interface ProductDetailProps {
   product: Product;
   onAddToCart: (product: Product) => void;
   onProductClick: (product: Product) => void;
+  onBack: () => void;
 }
 
-export const ProductDetail: React.FC<ProductDetailProps> = ({ product, onAddToCart, onProductClick }) => {
+export const ProductDetail: React.FC<ProductDetailProps> = ({ product, onAddToCart, onProductClick, onBack }) => {
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
   const [relatedLoading, setRelatedLoading] = useState(false);
   const [shareMessage, setShareMessage] = useState<string | null>(null);
@@ -174,6 +175,13 @@ export const ProductDetail: React.FC<ProductDetailProps> = ({ product, onAddToCa
 
   return (
     <div className="py-8 md:py-12 px-4 md:px-8 max-w-7xl mx-auto w-full">
+      <button
+        onClick={onBack}
+        className="mb-6 md:mb-8 flex items-center gap-2 border-4 border-ink bg-white px-5 py-3 font-label font-bold text-xs uppercase tracking-widest neo-shadow"
+      >
+        <ArrowLeft size={16} /> Back
+      </button>
+
       <div className="flex flex-col lg:flex-row gap-8 md:gap-12 mb-16 md:mb-24">
         {/* Image Gallery */}
         <div className="w-full lg:w-1/2 space-y-4">

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Page, AdminProduct, Store, Order, OrderStatus, Product } from '../types';
-import { Package, Store as StoreIcon, Plus, Trash2, Edit, Loader2, X, LogOut, Upload, Truck, ArrowLeft } from 'lucide-react';
+import { Page, AdminProduct, Store, Order, OrderStatus, Product, ContactInquiry, ContactInquiryStatus } from '../types';
+import { Package, Store as StoreIcon, Plus, Trash2, Edit, Loader2, X, LogOut, Upload, Truck, ArrowLeft, MessageSquare } from 'lucide-react';
 import { supabase, SUPABASE_STORAGE_BUCKET } from '../supabase';
 import { PREDEFINED_TAGS } from '../constants';
 import { fetchStoreMetrics } from '../lib/storeMetrics';
@@ -11,13 +11,16 @@ interface AdminDashboardProps {
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setPage, setIsAdmin }) => {
-  const [activeTab, setActiveTab] = useState<'products' | 'stores' | 'orders'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'stores' | 'orders' | 'inquiries'>('products');
   const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState<AdminProduct[]>([]);
   const [stores, setStores] = useState<Store[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [inquiries, setInquiries] = useState<ContactInquiry[]>([]);
   const [savingOrderId, setSavingOrderId] = useState<string | null>(null);
+  const [savingInquiryId, setSavingInquiryId] = useState<string | null>(null);
   const [orderDrafts, setOrderDrafts] = useState<Record<string, { status: OrderStatus; tracking_id: string; tracking_website: string }>>({});
+  const [inquiryDrafts, setInquiryDrafts] = useState<Record<string, ContactInquiryStatus>>({});
   const [selectedStore, setSelectedStore] = useState<Store | null>(null);
   const [storeListings, setStoreListings] = useState<Product[]>([]);
   const [storeListingsLoading, setStoreListingsLoading] = useState(false);
@@ -66,6 +69,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setPage, setIsAd
     setOrderDrafts(drafts);
   }, [orders]);
 
+  useEffect(() => {
+    const drafts = inquiries.reduce<Record<string, ContactInquiryStatus>>((acc, inquiry) => {
+      acc[inquiry.id] = inquiry.status;
+      return acc;
+    }, {});
+
+    setInquiryDrafts(drafts);
+  }, [inquiries]);
+
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -91,7 +103,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setPage, setIsAd
           rating: storeMetrics.get(s.id)?.rating || 0,
           ratingCount: storeMetrics.get(s.id)?.ratingCount || 0,
         })));
-      } else {
+      } else if (activeTab === 'orders') {
         const { data, error } = await supabase
           .from('orders')
           .select('*')
@@ -101,6 +113,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setPage, setIsAd
 
         if (error) throw error;
         setOrders((data || []) as Order[]);
+      } else {
+        const { data, error } = await supabase
+          .from('contact_inquiries')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        setInquiries((data || []) as ContactInquiry[]);
       }
     } catch (error) {
       console.error('Error fetching admin data:', error);
@@ -330,6 +350,34 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setPage, setIsAd
     }
   };
 
+  const updateInquiryDraft = (inquiryId: string, status: ContactInquiryStatus) => {
+    setInquiryDrafts(prev => ({
+      ...prev,
+      [inquiryId]: status,
+    }));
+  };
+
+  const handleSaveInquiry = async (inquiryId: string) => {
+    const status = inquiryDrafts[inquiryId];
+    if (!status) return;
+
+    setSavingInquiryId(inquiryId);
+
+    try {
+      const { error } = await supabase
+        .from('contact_inquiries')
+        .update({ status })
+        .eq('id', inquiryId);
+
+      if (error) throw error;
+      fetchData();
+    } catch (error) {
+      console.error('Error updating inquiry:', error);
+    } finally {
+      setSavingInquiryId(null);
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col lg:flex-row bg-surface">
       {/* Sidebar */}
@@ -359,6 +407,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setPage, setIsAd
             className={`w-full flex items-center gap-3 px-4 py-3 font-headline font-black text-sm border-2 transition-colors ${activeTab === 'orders' ? 'bg-white text-ink border-white' : 'border-transparent text-white/60 hover:bg-white/10'}`}
           >
             <Truck size={18} /> ORDERS
+          </button>
+          <button 
+            onClick={() => setActiveTab('inquiries')}
+            className={`w-full flex items-center gap-3 px-4 py-3 font-headline font-black text-sm border-2 transition-colors ${activeTab === 'inquiries' ? 'bg-white text-ink border-white' : 'border-transparent text-white/60 hover:bg-white/10'}`}
+          >
+            <MessageSquare size={18} /> INQUIRIES
           </button>
         </nav>
 
@@ -548,7 +602,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setPage, setIsAd
               </>
             )}
           </div>
-        ) : (
+        ) : activeTab === 'orders' ? (
           <div>
             <h2 className="font-headline font-black text-3xl sm:text-4xl uppercase mb-8">ORDER MONITORING</h2>
             {loading ? (
@@ -642,6 +696,66 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setPage, setIsAd
                     </div>
                   );
                 })}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div>
+            <h2 className="font-headline font-black text-3xl sm:text-4xl uppercase mb-8">CONTACT INQUIRIES</h2>
+            {loading ? (
+              <div className="flex justify-center py-12"><Loader2 className="animate-spin" /></div>
+            ) : inquiries.length === 0 ? (
+              <div className="bg-white border-4 border-ink p-8 sm:p-12 neo-shadow text-center">
+                <p className="font-headline font-black text-xl sm:text-2xl uppercase text-ink/30">No Inquiries Yet</p>
+              </div>
+            ) : (
+              <div className="space-y-4 sm:space-y-5">
+                {inquiries.map(inquiry => (
+                  <div key={inquiry.id} className="bg-white border-4 border-ink neo-shadow p-4 sm:p-6">
+                    <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-3 mb-3">
+                          <h3 className="font-headline font-black text-xl sm:text-2xl uppercase">{inquiry.name}</h3>
+                          <span className="px-3 py-1 border-2 border-ink bg-secondary-container font-label font-bold text-[10px] uppercase tracking-widest">
+                            {inquiry.topic}
+                          </span>
+                        </div>
+                        <p className="font-body font-bold text-sm text-ink/60">{inquiry.email}</p>
+                        <p className="font-body font-bold text-sm text-ink/60 mt-1">
+                          {new Date(inquiry.created_at).toLocaleString()}
+                        </p>
+                      </div>
+
+                      <div className="min-w-[180px]">
+                        <label className="font-label font-bold text-xs uppercase tracking-widest mb-2 block">Status</label>
+                        <select
+                          className="w-full bg-surface border-4 border-ink p-3 font-bold uppercase"
+                          value={inquiryDrafts[inquiry.id] || inquiry.status}
+                          onChange={(e) => updateInquiryDraft(inquiry.id, e.target.value as ContactInquiryStatus)}
+                        >
+                          <option value="new">NEW</option>
+                          <option value="in_progress">IN PROGRESS</option>
+                          <option value="resolved">RESOLVED</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="mt-5 border-4 border-ink bg-surface-container p-4">
+                      <p className="font-label font-bold text-[11px] uppercase tracking-widest text-ink/50 mb-2">Message</p>
+                      <p className="font-body font-bold text-sm text-ink/75 whitespace-pre-wrap">{inquiry.message}</p>
+                    </div>
+
+                    <div className="mt-5 flex justify-stretch sm:justify-end">
+                      <button
+                        onClick={() => handleSaveInquiry(inquiry.id)}
+                        disabled={savingInquiryId === inquiry.id}
+                        className="w-full sm:w-auto bg-primary-container border-4 border-ink px-6 py-3 font-headline font-black text-sm neo-shadow hover:opacity-90 transition-opacity disabled:opacity-60"
+                      >
+                        {savingInquiryId === inquiry.id ? <Loader2 className="animate-spin" size={18} /> : 'SAVE STATUS'}
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
