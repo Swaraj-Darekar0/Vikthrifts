@@ -160,7 +160,7 @@ export const Products: React.FC<ProductsProps> = ({ mode, onBack, onProductClick
           <p className="font-body font-bold text-sm sm:text-base text-ink/60 mt-3 max-w-2xl">
             {isOfficial
               ? 'Browse every official VIKTHRIFTS product in one place.'
-              : 'Browse all available products from every store, with 8 more products loading as you scroll.'}
+              : 'Browse all available products from every VIKTHRIFTS store'}
           </p>
         </div>
 
